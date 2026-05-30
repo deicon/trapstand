@@ -17,7 +17,7 @@ import { exportRundenCsv } from "./export/csv";
 import { LocalDatenbestand } from "./storage/datenbestand";
 import "./styles.css";
 
-type View = "list" | "editor" | "print";
+type View = "list" | "editor" | "capture" | "print";
 type PrintMode = "einzelergebnisse" | "zusammenfassung";
 
 const store = new LocalDatenbestand();
@@ -100,6 +100,16 @@ export function App() {
     return <PrintView runde={activeRunde} onBack={() => setView("editor")} />;
   }
 
+  if (view === "capture" && activeRunde) {
+    return (
+      <RundenErfassung
+        runde={activeRunde}
+        onEnd={() => setView("editor")}
+        onChange={updateActive}
+      />
+    );
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -128,6 +138,7 @@ export function App() {
             setActiveId(null);
           }}
           onPrint={() => setView("print")}
+          onStart={() => setView("capture")}
           onChange={updateActive}
           onMessage={setMessage}
         />
@@ -299,26 +310,15 @@ interface RundenEditorProps {
   runde: Runde;
   onBack: () => void;
   onPrint: () => void;
+  onStart: () => void;
   onChange: (runde: Runde) => void;
   onMessage: (message: string) => void;
 }
 
-function RundenEditor({ runde, onBack, onPrint, onChange, onMessage }: RundenEditorProps) {
+function RundenEditor({ runde, onBack, onPrint, onStart, onChange, onMessage }: RundenEditorProps) {
   const rotteLocked = hasRundeneintraege(runde);
   const ergebnisseLocked = runde.gesperrt === true;
   const [validationMessage, setValidationMessage] = useState("");
-  const isPhoneWidth = useWindowWidth() <= 640;
-  const [taubenPage, setTaubenPage] = useState(0);
-  const taubenPageSize = isPhoneWidth ? 5 : 25;
-  const taubenPageCount = Math.ceil(25 / taubenPageSize);
-  const activeTaubenPage = Math.min(taubenPage, taubenPageCount - 1);
-  const firstTaubeIndex = activeTaubenPage * taubenPageSize;
-  const lastTaubeIndex = Math.min(firstTaubeIndex + taubenPageSize, 25);
-  const visibleTauben = Array.from({ length: lastTaubeIndex - firstTaubeIndex }, (_, index) => firstTaubeIndex + index + 1);
-
-  useEffect(() => {
-    setTaubenPage(0);
-  }, [isPhoneWidth]);
 
   function toggleGesperrt() {
     if (!ergebnisseLocked && runde.schiessleiter.trim().length === 0) {
@@ -343,6 +343,7 @@ function RundenEditor({ runde, onBack, onPrint, onChange, onMessage }: RundenEdi
         <div className="editor-actions">
           <button onClick={onBack}>Zurueck zur Liste</button>
           <button onClick={onPrint}>Druckansicht</button>
+          <button onClick={onStart}>Runde starten</button>
           <button onClick={toggleGesperrt}>{ergebnisseLocked ? "Runde entsperren" : "Runde sperren"}</button>
         </div>
       </div>
@@ -374,36 +375,12 @@ function RundenEditor({ runde, onBack, onPrint, onChange, onMessage }: RundenEdi
       {ergebnisseLocked && <p className="lock-note">Runde gesperrt: Ergebnisse koennen erst nach dem Entsperren wieder geaendert werden.</p>}
       {validationMessage && <div role="alert" className="alert-message">{validationMessage}</div>}
 
-      {isPhoneWidth && (
-        <div className="tauben-pager" aria-label="Tauben Navigation">
-          <button
-            aria-label="Vorherige Tauben"
-            disabled={activeTaubenPage === 0}
-            onClick={() => setTaubenPage((page) => Math.max(0, page - 1))}
-          >
-            &lt;
-          </button>
-          <span>Tauben {firstTaubeIndex + 1}-{lastTaubeIndex} von 25</span>
-          <button
-            aria-label="Naechste Tauben"
-            disabled={activeTaubenPage >= taubenPageCount - 1}
-            onClick={() => setTaubenPage((page) => Math.min(taubenPageCount - 1, page + 1))}
-          >
-            &gt;
-          </button>
-        </div>
-      )}
-
-      <div className="score-table-wrap">
-        <table className="score-table" aria-label="Rundenerfassung">
+      <div className="setup-table-wrap">
+        <table className="setup-table" aria-label="Schuetzen vorbereiten">
           <thead>
             <tr>
-              <th className="sticky-name">Schuetze</th>
-              {visibleTauben.map((nummer) => (
-                <th key={nummer} className={nummer % 5 === 0 ? "group-end" : undefined}>{nummer}</th>
-              ))}
+              <th>Schuetze</th>
               <th>Gast</th>
-              <th>Ergebnis</th>
               <th>Bezahlt</th>
               <th>Aktion</th>
             </tr>
@@ -418,17 +395,6 @@ function RundenEditor({ runde, onBack, onPrint, onChange, onMessage }: RundenEdi
                     onChange={(event) => onChange(updateSchuetze(runde, schuetze.id, { name: event.target.value }))}
                   />
                 </th>
-                {schuetze.tauben.slice(firstTaubeIndex, lastTaubeIndex).map((taube, index) => (
-                  <td key={taube.nummer} className={taube.nummer % 5 === 0 ? "group-end" : undefined}>
-                    <TaubenButton
-                      nummer={taube.nummer}
-                      status={taube.status}
-                      zwischenstand={zwischenstandBis(schuetze, firstTaubeIndex + index)}
-                      disabled={ergebnisseLocked}
-                      onChange={(status) => onChange(setTaubenstatus(runde, schuetze.id, taube.nummer, status))}
-                    />
-                  </td>
-                ))}
                 <td>
                   <label className="compact-check">
                     <input
@@ -439,7 +405,6 @@ function RundenEditor({ runde, onBack, onPrint, onChange, onMessage }: RundenEdi
                     <span>{(schuetze.name || `Schuetze ${schuetzeIndex + 1}`)} ist Gast</span>
                   </label>
                 </td>
-                <td className="result-cell">Ergebnis: {schuetzenErgebnis(schuetze)}</td>
                 <td>
                   <label className="compact-check">
                     <input
@@ -471,6 +436,89 @@ function RundenEditor({ runde, onBack, onPrint, onChange, onMessage }: RundenEdi
 
       <button disabled={runde.rotte.length >= 6 || rotteLocked} onClick={() => onChange(addSchuetze(runde))}>Schuetze hinzufuegen</button>
     </section>
+  );
+}
+
+interface RundenErfassungProps {
+  runde: Runde;
+  onEnd: () => void;
+  onChange: (runde: Runde) => void;
+}
+
+function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
+  const isPhoneWidth = useWindowWidth() <= 640;
+  const [taubenPage, setTaubenPage] = useState(0);
+  const taubenPageSize = isPhoneWidth ? 5 : 25;
+  const taubenPageCount = Math.ceil(25 / taubenPageSize);
+  const activeTaubenPage = Math.min(taubenPage, taubenPageCount - 1);
+  const firstTaubeIndex = activeTaubenPage * taubenPageSize;
+  const lastTaubeIndex = Math.min(firstTaubeIndex + taubenPageSize, 25);
+  const visibleTauben = Array.from({ length: lastTaubeIndex - firstTaubeIndex }, (_, index) => firstTaubeIndex + index + 1);
+  const ergebnisseLocked = runde.gesperrt === true;
+
+  useEffect(() => {
+    setTaubenPage(0);
+  }, [isPhoneWidth]);
+
+  return (
+    <main className="capture-shell">
+      <div className="capture-toolbar">
+        <button onClick={onEnd}>Runde beenden</button>
+      </div>
+
+      {isPhoneWidth && (
+        <div className="tauben-pager" aria-label="Tauben Navigation">
+          <button
+            aria-label="Vorherige Tauben"
+            disabled={activeTaubenPage === 0}
+            onClick={() => setTaubenPage((page) => Math.max(0, page - 1))}
+          >
+            &lt;
+          </button>
+          <span>Tauben {firstTaubeIndex + 1}-{lastTaubeIndex} von 25</span>
+          <button
+            aria-label="Naechste Tauben"
+            disabled={activeTaubenPage >= taubenPageCount - 1}
+            onClick={() => setTaubenPage((page) => Math.min(taubenPageCount - 1, page + 1))}
+          >
+            &gt;
+          </button>
+        </div>
+      )}
+
+      <div className="score-table-wrap capture-table-wrap">
+        <table className="score-table capture-table" aria-label="Rundenerfassung">
+          <thead>
+            <tr>
+              <th className="sticky-name">Schuetze</th>
+              {visibleTauben.map((nummer) => (
+                <th key={nummer} className={nummer % 5 === 0 ? "group-end" : undefined}>{nummer}</th>
+              ))}
+              <th>Ergebnis</th>
+            </tr>
+          </thead>
+          <tbody>
+            {runde.rotte.map((schuetze, schuetzeIndex) => (
+              <tr key={schuetze.id} aria-label={schuetze.name || `Schuetze ${schuetzeIndex + 1}`} style={{ height: `${100 / runde.rotte.length}%` }}>
+                <th className="sticky-name">{schuetze.name || `Schuetze ${schuetzeIndex + 1}`}</th>
+                {schuetze.tauben.slice(firstTaubeIndex, lastTaubeIndex).map((taube, index) => (
+                  <td key={taube.nummer} className={taube.nummer % 5 === 0 ? "group-end" : undefined}>
+                    <TaubenButton
+                      nummer={taube.nummer}
+                      status={taube.status}
+                      zwischenstand={zwischenstandBis(schuetze, firstTaubeIndex + index)}
+                      disabled={ergebnisseLocked}
+                      onChange={(status) => onChange(setTaubenstatus(runde, schuetze.id, taube.nummer, status))}
+                    />
+                  </td>
+                ))}
+                <td className="result-cell">Ergebnis: {schuetzenErgebnis(schuetze)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </main>
   );
 }
 

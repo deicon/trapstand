@@ -228,7 +228,8 @@ input {
   gap: 0.35rem;
 }
 
-.score-table-wrap {
+.score-table-wrap,
+.setup-table-wrap {
   background: #ffffff;
   border: 1px solid #c7cec9;
   border-radius: 8px;
@@ -238,6 +239,51 @@ input {
 
 .score-table {
   min-width: 1460px;
+}
+
+.setup-table {
+  min-width: 640px;
+}
+
+.setup-table input[type="text"],
+.setup-table input:not([type]) {
+  width: 100%;
+}
+
+.capture-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  height: 100vh;
+  overflow: hidden;
+  padding: 0.75rem;
+}
+
+.capture-toolbar {
+  flex: 0 0 auto;
+}
+
+.capture-table-wrap {
+  flex: 1 1 auto;
+  margin-bottom: 0;
+  min-height: 0;
+}
+
+.capture-table {
+  height: 100%;
+}
+
+.capture-table tbody {
+  height: calc(100% - 42px);
+}
+
+.capture-table .taube {
+  height: 100%;
+  min-height: 64px;
+}
+
+.capture-table .taube-target {
+  min-height: 32px;
 }
 
 .tauben-pager {

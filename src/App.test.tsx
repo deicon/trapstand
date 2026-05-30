@@ -23,6 +23,9 @@ describe("Trapstand app", () => {
     await user.type(screen.getByLabelText(/name schuetze 1/i), "Anna");
     await user.click(screen.getByRole("checkbox", { name: /anna ist gast/i }));
     await user.click(screen.getByRole("checkbox", { name: /anna hat bezahlt/i }));
+    expect(screen.queryByRole("button", { name: /taube 1 als treffer markieren/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /runde starten/i }));
     const table = screen.getByRole("table", { name: /rundenerfassung/i });
     const annaRow = screen.getByRole("row", { name: /anna/i });
 
@@ -43,6 +46,10 @@ describe("Trapstand app", () => {
 
     expect(screen.getByText(/ergebnis: 1/i)).toBeInTheDocument();
 
+    await user.click(screen.getByRole("button", { name: /runde beenden/i }));
+    expect(screen.getByRole("button", { name: /runde starten/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /taube 1 treffer entfernen/i })).not.toBeInTheDocument();
+
     await user.click(screen.getByRole("button", { name: /zurueck zur liste/i }));
     expect(screen.getByText(/anna/i)).toBeInTheDocument();
     expect(screen.queryByText(/entwurf/i)).not.toBeInTheDocument();
@@ -54,6 +61,26 @@ describe("Trapstand app", () => {
     expect(screen.getByRole("checkbox", { name: /anna hat bezahlt/i })).toBeChecked();
   });
 
+  it("shows only the scoring table while a Runde is running", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: /neue runde/i }));
+    await user.clear(screen.getByLabelText(/name schuetze 1/i));
+    await user.type(screen.getByLabelText(/name schuetze 1/i), "Anna");
+    await user.click(screen.getByRole("button", { name: /schuetze hinzufuegen/i }));
+    await user.type(screen.getByLabelText(/name schuetze 2/i), "Bernd");
+
+    await user.click(screen.getByRole("button", { name: /runde starten/i }));
+
+    expect(screen.getByRole("button", { name: /runde beenden/i })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/schiessleiter/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /schuetze hinzufuegen/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^entfernen$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("row", { name: /anna/i })).toHaveStyle({ height: "50%" });
+    expect(screen.getByRole("row", { name: /bernd/i })).toHaveStyle({ height: "50%" });
+  });
+
   it("exports CSV, shows Druckansicht and deletes a Runde after confirmation", async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -62,9 +89,11 @@ describe("Trapstand app", () => {
     await user.type(screen.getByLabelText(/schiessleiter/i), "Leiter");
     await user.clear(screen.getByLabelText(/name schuetze 1/i));
     await user.type(screen.getByLabelText(/name schuetze 1/i), "Bernd");
+    await user.click(screen.getByRole("button", { name: /runde starten/i }));
     const berndRow = screen.getByRole("row", { name: /bernd/i });
     await user.click(within(berndRow).getByRole("button", { name: /taube 1 als treffer markieren/i }));
 
+    await user.click(screen.getByRole("button", { name: /runde beenden/i }));
     await user.click(screen.getByRole("button", { name: /druckansicht/i }));
     expect(screen.getByRole("heading", { name: /druckansicht/i })).toBeInTheDocument();
     expect(screen.getByText(/bernd/i)).toBeInTheDocument();
@@ -91,9 +120,11 @@ describe("Trapstand app", () => {
     await user.click(screen.getByRole("button", { name: /schuetze hinzufuegen/i }));
     expect(screen.getByLabelText(/name schuetze 2/i)).toBeInTheDocument();
 
+    await user.click(screen.getByRole("button", { name: /runde starten/i }));
     const annaRow = screen.getByRole("row", { name: /anna/i });
     await user.click(within(annaRow).getByRole("button", { name: /taube 1 als treffer markieren/i }));
 
+    await user.click(screen.getByRole("button", { name: /runde beenden/i }));
     expect(screen.getByRole("button", { name: /schuetze hinzufuegen/i })).toBeDisabled();
     expect(screen.getAllByRole("button", { name: /^entfernen$/i })[0]).toBeDisabled();
     expect(screen.getByText(/rotte gesperrt/i)).toBeInTheDocument();
@@ -106,13 +137,16 @@ describe("Trapstand app", () => {
     await user.click(screen.getByRole("button", { name: /neue runde/i }));
     await user.clear(screen.getByLabelText(/name schuetze 1/i));
     await user.type(screen.getByLabelText(/name schuetze 1/i), "Anna");
-    const annaRow = screen.getByRole("row", { name: /anna/i });
+    await user.click(screen.getByRole("button", { name: /runde starten/i }));
+    let annaRow = screen.getByRole("row", { name: /anna/i });
     await user.click(within(annaRow).getByRole("button", { name: /taube 1 als treffer markieren/i }));
 
+    await user.click(screen.getByRole("button", { name: /runde beenden/i }));
+    annaRow = screen.getByRole("row", { name: /anna/i });
     await user.click(screen.getByRole("button", { name: /runde sperren/i }));
     expect(screen.getByRole("alert")).toHaveTextContent(/schiessleiter muss gesetzt sein/i);
     expect(screen.getByLabelText(/schiessleiter/i)).toHaveAttribute("aria-invalid", "true");
-    expect(within(annaRow).getByRole("button", { name: /taube 1 treffer entfernen/i })).not.toBeDisabled();
+    expect(screen.queryByRole("button", { name: /taube 1 treffer entfernen/i })).not.toBeInTheDocument();
 
     await user.type(screen.getByLabelText(/schiessleiter/i), "Leiter");
     await user.click(screen.getByRole("button", { name: /runde sperren/i }));
@@ -124,10 +158,13 @@ describe("Trapstand app", () => {
     expect(screen.queryByText(/entwurf/i)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /anna/i }));
+    await user.click(screen.getByRole("button", { name: /runde starten/i }));
     expect(within(screen.getByRole("row", { name: /anna/i })).getByRole("button", { name: /taube 1 treffer entfernen/i })).toBeDisabled();
     expect(within(screen.getByRole("row", { name: /anna/i })).getByRole("button", { name: /taube 1 als fehler markieren/i })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: /runde beenden/i }));
     await user.click(screen.getByRole("button", { name: /runde entsperren/i }));
     expect(screen.queryByText(/runde gesperrt/i)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /runde starten/i }));
     expect(screen.getByRole("button", { name: /taube 1 treffer entfernen/i })).not.toBeDisabled();
   });
 
@@ -137,6 +174,7 @@ describe("Trapstand app", () => {
     render(<App />);
 
     await user.click(screen.getByRole("button", { name: /neue runde/i }));
+    await user.click(screen.getByRole("button", { name: /runde starten/i }));
 
     expect(screen.getByText(/tauben 1-5 von 25/i)).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "1" })).toBeInTheDocument();
@@ -160,9 +198,11 @@ describe("Trapstand app", () => {
     await user.click(screen.getByRole("button", { name: /neue runde/i }));
     await user.clear(screen.getByLabelText(/name schuetze 1/i));
     await user.type(screen.getByLabelText(/name schuetze 1/i), "Anna");
-    await user.click(screen.getByRole("button", { name: /taube 1 als treffer markieren/i }));
     await user.click(screen.getByRole("checkbox", { name: /anna ist gast/i }));
     await user.click(screen.getByRole("checkbox", { name: /anna hat bezahlt/i }));
+    await user.click(screen.getByRole("button", { name: /runde starten/i }));
+    await user.click(screen.getByRole("button", { name: /taube 1 als treffer markieren/i }));
+    await user.click(screen.getByRole("button", { name: /runde beenden/i }));
 
     await user.click(screen.getByRole("button", { name: /druckansicht/i }));
     expect(screen.getByText(/^zwischenstand 1$/i)).toBeInTheDocument();
