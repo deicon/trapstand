@@ -1,7 +1,7 @@
 {
-  "name": "Trabstand",
-  "short_name": "Trabstand",
-  "description": "Offline Rundenerfassung am Trabstand",
+  "name": "Trapstand",
+  "short_name": "Trapstand",
+  "description": "Offline Rundenerfassung am Trapstand",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",

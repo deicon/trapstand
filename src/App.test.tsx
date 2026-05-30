@@ -4,7 +4,7 @@ import { vi } from "vitest";
 import { App } from "./App";
 import { createRunde } from "./domain/runden";
 
-describe("Trabstand app", () => {
+describe("Trapstand app", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.useRealTimers();
@@ -181,7 +181,7 @@ describe("Trabstand app", () => {
   it("groups vergangene Runden by month and year and filters by Monat and Jahr", async () => {
     const user = userEvent.setup();
     localStorage.setItem(
-      "trabstand:datenbestand",
+      "trapstand:datenbestand",
       JSON.stringify({
         runden: [
           createRunde({
@@ -228,7 +228,7 @@ describe("Trabstand app", () => {
     const share = vi.fn();
     const canShare = vi.fn((payload: ShareData) => {
       const file = payload.files?.[0];
-      return file?.name === "trabstand-backup.json" && file.type === "text/plain";
+      return file?.name === "trapstand-backup.json" && file.type === "text/plain";
     });
     Object.defineProperty(navigator, "share", { configurable: true, value: share });
     Object.defineProperty(navigator, "canShare", { configurable: true, value: canShare });
@@ -240,8 +240,8 @@ describe("Trabstand app", () => {
     expect(canShare).toHaveBeenCalled();
     expect(share).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: "trabstand-backup.json",
-        files: [expect.objectContaining({ name: "trabstand-backup.json", type: "text/plain" })]
+        title: "trapstand-backup.json",
+        files: [expect.objectContaining({ name: "trapstand-backup.json", type: "text/plain" })]
       })
     );
   });

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the first usable static Offline-PWA for recording Runden at the Trabstand.
+**Goal:** Build the first usable static Offline-PWA for recording Runden at the Trapstand.
 
 **Architecture:** Keep the fachliche Regeln in small, deep TypeScript modules that can be tested without React. The UI is a tablet-first shell over the domain, local storage, CSV/JSON export, print view, and PWA install/offline assets.
 

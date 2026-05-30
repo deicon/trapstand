@@ -1,6 +1,6 @@
-# Trabstand
+# Trapstand
 
-Dieses Kontextmodell beschreibt die Erfassung von Ergebnissen am Trabstand eines Schuetzenvereins. Es legt die Sprache fuer Runden, Rotten, Treffer und Auswertungsmerkmale fest.
+Dieses Kontextmodell beschreibt die Erfassung von Ergebnissen am Trapstand eines Schuetzenvereins. Es legt die Sprache fuer Runden, Rotten, Treffer und Auswertungsmerkmale fest.
 
 ## Language
 

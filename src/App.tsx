@@ -64,13 +64,13 @@ export function App() {
 
   function exportCsv() {
     const csv = exportRundenCsv(runden);
-    downloadOrShare("trabstand-runden.csv", csv, "text/csv");
+    downloadOrShare("trapstand-runden.csv", csv, "text/csv");
     setMessage("CSV-Export vorbereitet.");
   }
 
   function exportBackup() {
     const json = exportBackupJson(store.export());
-    downloadOrShare("trabstand-backup.json", json, "text/plain");
+    downloadOrShare("trapstand-backup.json", json, "text/plain");
     setMessage("Backup-Export vorbereitet.");
   }
 
@@ -104,7 +104,7 @@ export function App() {
     <main className="app-shell">
       <header className="topbar">
         <div>
-          <h1>Trabstand</h1>
+          <h1>Trapstand</h1>
           <p>Rundenerfassung am Schuetzenstand</p>
         </div>
         <div className="topbar-actions">

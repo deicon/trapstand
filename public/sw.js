@@ -1,4 +1,4 @@
-const CACHE_NAME = "trabstand-v1";
+const CACHE_NAME = "trapstand-v1";
 const BASE_URL = new URL(self.registration.scope).pathname;
 const APP_SHELL = [BASE_URL, `${BASE_URL}manifest.webmanifest`, `${BASE_URL}icon.svg`];
 
