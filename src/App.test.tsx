@@ -27,19 +27,19 @@ describe("Trabstand app", () => {
     const annaRow = screen.getByRole("row", { name: /anna/i });
 
     expect(within(table).getByRole("columnheader", { name: "1" })).toBeInTheDocument();
-    expect(within(annaRow).getByRole("button", { name: /taube 1 offen, naechster status getroffen/i })).toHaveTextContent("-");
+    expect(within(annaRow).getByRole("button", { name: /taube 1 als treffer markieren/i })).toHaveTextContent("-");
 
-    await user.click(within(annaRow).getByRole("button", { name: /taube 1 offen, naechster status getroffen/i }));
-    expect(within(annaRow).getByRole("button", { name: /taube 1 getroffen, zwischenstand 1/i })).toHaveTextContent("1");
+    await user.click(within(annaRow).getByRole("button", { name: /taube 1 als treffer markieren/i }));
+    expect(within(annaRow).getByRole("button", { name: /taube 1 treffer entfernen/i })).toHaveTextContent("1");
 
-    await user.click(within(annaRow).getByRole("button", { name: /taube 2 offen, naechster status getroffen/i }));
-    expect(within(annaRow).getByRole("button", { name: /taube 2 getroffen, zwischenstand 2/i })).toHaveTextContent("2");
+    await user.click(within(annaRow).getByRole("button", { name: /taube 2 als treffer markieren/i }));
+    expect(within(annaRow).getByRole("button", { name: /taube 2 treffer entfernen/i })).toHaveTextContent("2");
 
-    await user.click(within(annaRow).getByRole("button", { name: /taube 2 getroffen, zwischenstand 2/i }));
-    expect(within(annaRow).getByRole("button", { name: /taube 2 verfehlt, zwischenstand 1/i })).toHaveTextContent("1");
+    await user.click(within(annaRow).getByRole("button", { name: /taube 2 als fehler markieren/i }));
+    expect(within(annaRow).getByRole("button", { name: /taube 2 fehler entfernen/i })).toHaveTextContent("1");
 
-    await user.click(within(annaRow).getByRole("button", { name: /taube 2 verfehlt, zwischenstand 1/i }));
-    expect(within(annaRow).getByRole("button", { name: /taube 2 offen, naechster status getroffen/i })).toHaveTextContent("-");
+    await user.click(within(annaRow).getByRole("button", { name: /taube 2 fehler entfernen/i }));
+    expect(within(annaRow).getByRole("button", { name: /taube 2 als treffer markieren/i })).toHaveTextContent("-");
 
     expect(screen.getByText(/ergebnis: 1/i)).toBeInTheDocument();
 
@@ -63,7 +63,7 @@ describe("Trabstand app", () => {
     await user.clear(screen.getByLabelText(/name schuetze 1/i));
     await user.type(screen.getByLabelText(/name schuetze 1/i), "Bernd");
     const berndRow = screen.getByRole("row", { name: /bernd/i });
-    await user.click(within(berndRow).getByRole("button", { name: /taube 1 offen, naechster status getroffen/i }));
+    await user.click(within(berndRow).getByRole("button", { name: /taube 1 als treffer markieren/i }));
 
     await user.click(screen.getByRole("button", { name: /druckansicht/i }));
     expect(screen.getByRole("heading", { name: /druckansicht/i })).toBeInTheDocument();
@@ -92,10 +92,10 @@ describe("Trabstand app", () => {
     expect(screen.getByLabelText(/name schuetze 2/i)).toBeInTheDocument();
 
     const annaRow = screen.getByRole("row", { name: /anna/i });
-    await user.click(within(annaRow).getByRole("button", { name: /taube 1 offen, naechster status getroffen/i }));
+    await user.click(within(annaRow).getByRole("button", { name: /taube 1 als treffer markieren/i }));
 
     expect(screen.getByRole("button", { name: /schuetze hinzufuegen/i })).toBeDisabled();
-    expect(screen.getAllByRole("button", { name: /entfernen/i })[0]).toBeDisabled();
+    expect(screen.getAllByRole("button", { name: /^entfernen$/i })[0]).toBeDisabled();
     expect(screen.getByText(/rotte gesperrt/i)).toBeInTheDocument();
   });
 
@@ -107,12 +107,12 @@ describe("Trabstand app", () => {
     await user.clear(screen.getByLabelText(/name schuetze 1/i));
     await user.type(screen.getByLabelText(/name schuetze 1/i), "Anna");
     const annaRow = screen.getByRole("row", { name: /anna/i });
-    await user.click(within(annaRow).getByRole("button", { name: /taube 1 offen, naechster status getroffen/i }));
+    await user.click(within(annaRow).getByRole("button", { name: /taube 1 als treffer markieren/i }));
 
     await user.click(screen.getByRole("button", { name: /runde sperren/i }));
     expect(screen.getByRole("alert")).toHaveTextContent(/schiessleiter muss gesetzt sein/i);
     expect(screen.getByLabelText(/schiessleiter/i)).toHaveAttribute("aria-invalid", "true");
-    expect(within(annaRow).getByRole("button", { name: /taube 1 getroffen/i })).not.toBeDisabled();
+    expect(within(annaRow).getByRole("button", { name: /taube 1 treffer entfernen/i })).not.toBeDisabled();
 
     await user.type(screen.getByLabelText(/schiessleiter/i), "Leiter");
     await user.click(screen.getByRole("button", { name: /runde sperren/i }));
@@ -124,10 +124,11 @@ describe("Trabstand app", () => {
     expect(screen.queryByText(/entwurf/i)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /anna/i }));
-    expect(within(screen.getByRole("row", { name: /anna/i })).getByRole("button", { name: /taube 1 getroffen/i })).toBeDisabled();
+    expect(within(screen.getByRole("row", { name: /anna/i })).getByRole("button", { name: /taube 1 treffer entfernen/i })).toBeDisabled();
+    expect(within(screen.getByRole("row", { name: /anna/i })).getByRole("button", { name: /taube 1 als fehler markieren/i })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: /runde entsperren/i }));
     expect(screen.queryByText(/runde gesperrt/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /taube 1 getroffen/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /taube 1 treffer entfernen/i })).not.toBeDisabled();
   });
 
   it("shows five Tauben at a time with navigation on phone width", async () => {
@@ -148,8 +149,8 @@ describe("Trabstand app", () => {
     expect(screen.queryByRole("columnheader", { name: "1" })).not.toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "6" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "10" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /taube 6 offen, naechster status getroffen/i }));
-    expect(screen.getByRole("button", { name: /taube 6 getroffen, zwischenstand 1/i })).toHaveTextContent("1");
+    await user.click(screen.getByRole("button", { name: /taube 6 als treffer markieren/i }));
+    expect(screen.getByRole("button", { name: /taube 6 treffer entfernen/i })).toHaveTextContent("1");
   });
 
   it("switches Druckansicht between Einzelergebnisse and Zusammenfassung", async () => {
@@ -159,7 +160,7 @@ describe("Trabstand app", () => {
     await user.click(screen.getByRole("button", { name: /neue runde/i }));
     await user.clear(screen.getByLabelText(/name schuetze 1/i));
     await user.type(screen.getByLabelText(/name schuetze 1/i), "Anna");
-    await user.click(screen.getByRole("button", { name: /taube 1 offen, naechster status getroffen/i }));
+    await user.click(screen.getByRole("button", { name: /taube 1 als treffer markieren/i }));
     await user.click(screen.getByRole("checkbox", { name: /anna ist gast/i }));
     await user.click(screen.getByRole("checkbox", { name: /anna hat bezahlt/i }));
 

@@ -253,10 +253,21 @@ input {
 }
 
 .taube {
-  border: 0;
+  border: 1px solid #d4dbd6;
   border-radius: 4px;
+  display: grid;
   font-weight: 700;
-  min-height: 38px;
+  grid-template-rows: 1fr 1fr;
+  min-height: 46px;
+  min-width: 38px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.taube-target {
+  border: 0;
+  border-radius: 0;
+  min-height: 23px;
   min-width: 38px;
   padding: 0;
   width: 100%;
@@ -305,9 +316,32 @@ input {
   color: #7b1c1c;
 }
 
-.taube-offen {
+.taube-offen,
+.taube-target {
   background: #f6f3ec;
   color: #626b66;
+}
+
+.taube-target-treffer {
+  border-bottom: 1px solid #d4dbd6;
+}
+
+.taube-target-treffer:not([aria-pressed="true"]) {
+  background: #edf7f0;
+}
+
+.taube-target-fehler:not([aria-pressed="true"]) {
+  background: #fbefef;
+}
+
+.taube-target-treffer[aria-pressed="true"] {
+  background: #cbe8d5;
+  color: #134c2c;
+}
+
+.taube-target-fehler[aria-pressed="true"] {
+  background: #f4d4d4;
+  color: #7b1c1c;
 }
 
 .compact-check {

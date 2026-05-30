@@ -498,15 +498,36 @@ interface TaubenButtonProps {
 }
 
 function TaubenButton({ nummer, status, zwischenstand, disabled, onChange }: TaubenButtonProps) {
-  const nextStatus: Taubenstatus = status === "offen" ? "getroffen" : status === "getroffen" ? "verfehlt" : "offen";
-  const label =
-    status === "offen"
-      ? `Taube ${nummer} offen, naechster status ${nextStatus}`
-      : `Taube ${nummer} ${status}, zwischenstand ${zwischenstand}, naechster status ${nextStatus}`;
+  const trefferLabel =
+    status === "getroffen"
+      ? `Taube ${nummer} Treffer entfernen, Zwischenstand ${zwischenstand}`
+      : `Taube ${nummer} als Treffer markieren`;
+  const fehlerLabel =
+    status === "verfehlt"
+      ? `Taube ${nummer} Fehler entfernen, Zwischenstand ${zwischenstand}`
+      : `Taube ${nummer} als Fehler markieren`;
+
   return (
-    <button className={`taube taube-${status}`} aria-label={label} disabled={disabled} onClick={() => onChange(nextStatus)}>
-      {status === "offen" ? "-" : zwischenstand}
-    </button>
+    <div className={`taube taube-${status}`} role="group" aria-label={`Taube ${nummer}`}>
+      <button
+        className="taube-target taube-target-treffer"
+        aria-label={trefferLabel}
+        aria-pressed={status === "getroffen"}
+        disabled={disabled}
+        onClick={() => onChange(status === "getroffen" ? "offen" : "getroffen")}
+      >
+        {status === "getroffen" ? zwischenstand : "-"}
+      </button>
+      <button
+        className="taube-target taube-target-fehler"
+        aria-label={fehlerLabel}
+        aria-pressed={status === "verfehlt"}
+        disabled={disabled}
+        onClick={() => onChange(status === "verfehlt" ? "offen" : "verfehlt")}
+      >
+        {status === "verfehlt" ? zwischenstand : "-"}
+      </button>
+    </div>
   );
 }
 
