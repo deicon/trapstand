@@ -2,14 +2,14 @@
   "name": "Trabstand",
   "short_name": "Trabstand",
   "description": "Offline Rundenerfassung am Trabstand",
-  "start_url": "/",
-  "scope": "/",
+  "start_url": ".",
+  "scope": ".",
   "display": "standalone",
   "background_color": "#f4f0e8",
   "theme_color": "#174c3a",
   "icons": [
     {
-      "src": "/icon.svg",
+      "src": "icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
