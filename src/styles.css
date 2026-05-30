@@ -1,0 +1,446 @@
+:root {
+  color: #1a1f1d;
+  background: #f4f0e8;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  border: 1px solid #9aa39f;
+  background: #ffffff;
+  border-radius: 6px;
+  color: #17221d;
+  cursor: pointer;
+  min-height: 42px;
+  padding: 0.55rem 0.8rem;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+input {
+  border: 1px solid #9aa39f;
+  border-radius: 6px;
+  min-height: 42px;
+  padding: 0.5rem 0.6rem;
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.topbar {
+  align-items: center;
+  background: #174c3a;
+  color: #ffffff;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1rem;
+}
+
+.topbar h1,
+.topbar p,
+.editor-header h2,
+.editor-header p {
+  margin: 0;
+}
+
+.topbar-actions,
+.editor-actions,
+.print-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.file-action {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #9aa39f;
+  border-radius: 6px;
+  color: #17221d;
+  cursor: pointer;
+  display: inline-flex;
+  min-height: 42px;
+  padding: 0.55rem 0.8rem;
+}
+
+.file-action input {
+  display: none;
+}
+
+.status-message {
+  background: #e4f2eb;
+  border-bottom: 1px solid #b8d6c8;
+  padding: 0.75rem 1rem;
+}
+
+.alert-message {
+  background: #fde8e8;
+  border: 1px solid #d97373;
+  border-radius: 6px;
+  color: #7b1c1c;
+  margin: 0 0 1rem;
+  padding: 0.65rem 0.8rem;
+}
+
+.input-error {
+  border-color: #b55252;
+  box-shadow: 0 0 0 2px rgba(181, 82, 82, 0.18);
+}
+
+.panel,
+.editor {
+  padding: 1rem;
+}
+
+.list-filters {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.list-filters label {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 160px;
+}
+
+.list-filters select {
+  border: 1px solid #9aa39f;
+  border-radius: 6px;
+  min-height: 42px;
+  padding: 0.45rem 0.55rem;
+}
+
+.round-groups {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.round-group h3 {
+  border-bottom: 1px solid #c7cec9;
+  margin: 0 0 0.65rem;
+  padding-bottom: 0.35rem;
+}
+
+.round-list {
+  display: grid;
+  gap: 0.75rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.round-row {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #d0d5d2;
+  border-radius: 8px;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: 1fr auto;
+  padding: 0.75rem;
+}
+
+.round-open {
+  align-items: flex-start;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  text-align: left;
+}
+
+.round-badge {
+  background: #e7eee9;
+  border: 1px solid #b8c8bf;
+  border-radius: 999px;
+  display: inline-block;
+  font-size: 0.85em;
+  font-weight: 700;
+  padding: 0.08rem 0.45rem;
+}
+
+.round-badge-locked {
+  background: #fff2cf;
+  border-color: #d8b45f;
+}
+
+.confirm-delete {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  grid-column: 1 / -1;
+}
+
+.danger {
+  border-color: #b55252;
+  color: #8d2424;
+}
+
+.lock-note {
+  background: #fff2cf;
+  border: 1px solid #d8b45f;
+  border-radius: 6px;
+  margin: 0 0 1rem;
+  padding: 0.65rem 0.8rem;
+}
+
+.editor-header {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.form-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin-bottom: 1rem;
+}
+
+.form-grid label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.score-table-wrap {
+  background: #ffffff;
+  border: 1px solid #c7cec9;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  overflow-x: auto;
+}
+
+.score-table {
+  min-width: 1460px;
+}
+
+.tauben-pager {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  margin: 0 0 0.75rem;
+}
+
+.tauben-pager span {
+  font-weight: 700;
+}
+
+.taube {
+  border: 0;
+  border-radius: 4px;
+  font-weight: 700;
+  min-height: 38px;
+  min-width: 38px;
+  padding: 0;
+  width: 100%;
+}
+
+.score-table th,
+.score-table td {
+  background: #ffffff;
+  padding: 0.22rem;
+}
+
+.score-table thead th {
+  background: #edf3ef;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.score-table .sticky-name {
+  left: 0;
+  min-width: 190px;
+  position: sticky;
+  z-index: 3;
+}
+
+.score-table tbody .sticky-name {
+  background: #ffffff;
+}
+
+.score-table input[type="text"],
+.score-table input:not([type]) {
+  width: 100%;
+}
+
+.group-end {
+  border-right-width: 3px;
+}
+
+.taube-getroffen {
+  background: #cbe8d5;
+  color: #134c2c;
+}
+
+.taube-verfehlt {
+  background: #f4d4d4;
+  color: #7b1c1c;
+}
+
+.taube-offen {
+  background: #f6f3ec;
+  color: #626b66;
+}
+
+.compact-check {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.compact-check input {
+  min-height: auto;
+}
+
+.compact-check span {
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  position: absolute;
+  width: 1px;
+}
+
+.result-cell {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.compact-button {
+  min-height: 34px;
+  padding: 0.25rem 0.45rem;
+}
+
+.print-view {
+  background: #ffffff;
+  min-height: 100vh;
+  overflow-x: auto;
+  padding: 1rem;
+}
+
+table {
+  border-collapse: collapse;
+  min-width: 1200px;
+  width: 100%;
+}
+
+.summary-table {
+  min-width: 520px;
+  max-width: 760px;
+}
+
+th,
+td {
+  border: 1px solid #747d78;
+  padding: 0.35rem;
+  text-align: center;
+}
+
+th:first-child {
+  text-align: left;
+}
+
+.empty-state {
+  background: #ffffff;
+  border: 1px dashed #a9b0ac;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+@media (max-width: 820px) {
+  .topbar,
+  .editor-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .score-table {
+    min-width: 1280px;
+  }
+}
+
+@media (max-width: 640px) {
+  .score-table {
+    min-width: 680px;
+  }
+}
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+
+  html,
+  body {
+    background: #ffffff;
+  }
+
+  .print-actions {
+    display: none;
+  }
+
+  .print-view {
+    min-height: auto;
+    overflow: visible;
+    padding: 0;
+  }
+
+  .print-view h1 {
+    font-size: 16px;
+    margin: 0 0 3mm;
+  }
+
+  .print-view p {
+    font-size: 10px;
+    margin: 0 0 3mm;
+  }
+
+  .print-view table {
+    font-size: 7px;
+    min-width: 0;
+    table-layout: fixed;
+    width: 100%;
+  }
+
+  .print-view th,
+  .print-view td {
+    padding: 1.2mm 0.8mm;
+  }
+
+  .print-view th:first-child {
+    width: 24mm;
+  }
+
+  .summary-table {
+    font-size: 10px;
+    max-width: none;
+  }
+}
