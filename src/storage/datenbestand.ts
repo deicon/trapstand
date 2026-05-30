@@ -1,7 +1,7 @@
 import type { Datenbestand, Runde } from "../domain/model";
 
 export class LocalDatenbestand {
-  constructor(private readonly key = "trapstand:datenbestand", private readonly legacyKey = "trabstand:datenbestand") {}
+  constructor(private readonly key = "trapstand:datenbestand") {}
 
   list(): Runde[] {
     return [...this.read().runden].sort((a, b) => b.rundenzeit.localeCompare(a.rundenzeit));
@@ -35,7 +35,7 @@ export class LocalDatenbestand {
   }
 
   private read(): Datenbestand {
-    const raw = localStorage.getItem(this.key) ?? localStorage.getItem(this.legacyKey);
+    const raw = localStorage.getItem(this.key);
     if (!raw) {
       return { runden: [] };
     }
