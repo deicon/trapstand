@@ -14,6 +14,7 @@ import {
 } from "./domain/runden";
 import { exportBackupJson, importBackupJson } from "./export/backup";
 import { exportRundenCsv } from "./export/csv";
+import { refreshPwa } from "./pwa/refresh";
 import { LocalDatenbestand } from "./storage/datenbestand";
 import "./styles.css";
 
@@ -40,20 +41,20 @@ export function App() {
     return () => window.clearTimeout(timeoutId);
   }, [message]);
 
-  function refresh() {
+  function refreshRunden() {
     setRunden(store.list());
   }
 
   function saveRunde(next: Runde) {
     store.save(next);
-    refresh();
+    refreshRunden();
     setActiveId(next.id);
   }
 
   function createNewRunde() {
     const runde = createEntwurf();
     store.save(runde);
-    refresh();
+    refreshRunden();
     setActiveId(runde.id);
     setView("editor");
   }
@@ -80,7 +81,7 @@ export function App() {
     }
     const text = await file.text();
     store.replace(importBackupJson(text));
-    refresh();
+    refreshRunden();
     setActiveId(null);
     setView("list");
     setMessage("Backup importiert.");
@@ -93,11 +94,20 @@ export function App() {
       setActiveId(null);
       setView("list");
     }
-    refresh();
+    refreshRunden();
+  }
+
+  async function handleAppRefresh() {
+    setMessage("App wird aktualisiert.");
+    try {
+      await refreshPwa();
+    } catch {
+      window.location.reload();
+    }
   }
 
   if (view === "print" && activeRunde) {
-    return <PrintView runde={activeRunde} onBack={() => setView("editor")} />;
+    return <PrintView runde={activeRunde} onBack={() => setView("editor")} onRefresh={() => void handleAppRefresh()} />;
   }
 
   if (view === "capture" && activeRunde) {
@@ -105,6 +115,7 @@ export function App() {
       <RundenErfassung
         runde={activeRunde}
         onEnd={() => setView("editor")}
+        onRefresh={() => void handleAppRefresh()}
         onChange={updateActive}
       />
     );
@@ -119,6 +130,7 @@ export function App() {
         </div>
         <div className="topbar-actions">
           <button onClick={createNewRunde}>Neue Runde</button>
+          <button onClick={() => void handleAppRefresh()}>Aktualisieren</button>
           <button onClick={exportCsv}>CSV</button>
           <button onClick={exportBackup}>JSON Backup</button>
           <label className="file-action">
@@ -354,6 +366,7 @@ function RundenEditor({ runde, onBack, onPrint, onStart, onChange, onMessage }: 
           <input
             type="datetime-local"
             value={runde.rundenzeit}
+            disabled={ergebnisseLocked}
             onChange={(event) => onChange({ ...runde, rundenzeit: event.target.value })}
           />
         </label>
@@ -363,6 +376,7 @@ function RundenEditor({ runde, onBack, onPrint, onStart, onChange, onMessage }: 
             value={runde.schiessleiter}
             aria-invalid={validationMessage ? "true" : undefined}
             className={validationMessage ? "input-error" : undefined}
+            disabled={ergebnisseLocked}
             onChange={(event) => {
               setValidationMessage("");
               onChange({ ...runde, schiessleiter: event.target.value });
@@ -371,7 +385,6 @@ function RundenEditor({ runde, onBack, onPrint, onStart, onChange, onMessage }: 
         </label>
       </div>
 
-      {rotteLocked && <p className="lock-note">Rotte gesperrt: Nach dem ersten Rundeneintrag koennen keine Schuetzen hinzugefuegt oder entfernt werden.</p>}
       {ergebnisseLocked && <p className="lock-note">Runde gesperrt: Ergebnisse koennen erst nach dem Entsperren wieder geaendert werden.</p>}
       {validationMessage && <div role="alert" className="alert-message">{validationMessage}</div>}
 
@@ -392,6 +405,7 @@ function RundenEditor({ runde, onBack, onPrint, onStart, onChange, onMessage }: 
                   <input
                     aria-label={`Name Schuetze ${schuetzeIndex + 1}`}
                     value={schuetze.name}
+                    disabled={ergebnisseLocked}
                     onChange={(event) => onChange(updateSchuetze(runde, schuetze.id, { name: event.target.value }))}
                   />
                 </th>
@@ -400,6 +414,7 @@ function RundenEditor({ runde, onBack, onPrint, onStart, onChange, onMessage }: 
                     <input
                       type="checkbox"
                       checked={schuetze.gaststatus}
+                      disabled={ergebnisseLocked}
                       onChange={(event) => onChange(updateSchuetze(runde, schuetze.id, { gaststatus: event.target.checked }))}
                     />
                     <span>{(schuetze.name || `Schuetze ${schuetzeIndex + 1}`)} ist Gast</span>
@@ -410,6 +425,7 @@ function RundenEditor({ runde, onBack, onPrint, onStart, onChange, onMessage }: 
                     <input
                       type="checkbox"
                       checked={schuetze.zahlungsstatus}
+                      disabled={ergebnisseLocked}
                       onChange={(event) =>
                         onChange(updateSchuetze(runde, schuetze.id, { zahlungsstatus: event.target.checked }))
                       }
@@ -421,7 +437,7 @@ function RundenEditor({ runde, onBack, onPrint, onStart, onChange, onMessage }: 
                   {runde.rotte.length > 1 && (
                     <button
                       className="danger compact-button"
-                      disabled={rotteLocked}
+                      disabled={rotteLocked || ergebnisseLocked}
                       onClick={() => onChange(removeSchuetze(runde, schuetze.id))}
                     >
                       Entfernen
@@ -434,7 +450,7 @@ function RundenEditor({ runde, onBack, onPrint, onStart, onChange, onMessage }: 
         </table>
       </div>
 
-      <button disabled={runde.rotte.length >= 6 || rotteLocked} onClick={() => onChange(addSchuetze(runde))}>Schuetze hinzufuegen</button>
+      <button disabled={runde.rotte.length >= 6 || rotteLocked || ergebnisseLocked} onClick={() => onChange(addSchuetze(runde))}>Schuetze hinzufuegen</button>
     </section>
   );
 }
@@ -442,10 +458,11 @@ function RundenEditor({ runde, onBack, onPrint, onStart, onChange, onMessage }: 
 interface RundenErfassungProps {
   runde: Runde;
   onEnd: () => void;
+  onRefresh: () => void;
   onChange: (runde: Runde) => void;
 }
 
-function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
+function RundenErfassung({ runde, onEnd, onRefresh, onChange }: RundenErfassungProps) {
   const isPhoneWidth = useWindowWidth() <= 640;
   const [taubenPage, setTaubenPage] = useState(0);
   const taubenPageSize = isPhoneWidth ? 5 : 25;
@@ -464,6 +481,7 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
     <main className="capture-shell">
       <div className="capture-toolbar">
         <button onClick={onEnd}>Runde beenden</button>
+        <button onClick={onRefresh}>Aktualisieren</button>
       </div>
 
       {isPhoneWidth && (
@@ -583,7 +601,7 @@ function zwischenstandBis(schuetze: { tauben: { status: Taubenstatus }[] }, inde
   return schuetze.tauben.slice(0, index + 1).filter((taube) => taube.status === "getroffen").length;
 }
 
-function PrintView({ runde, onBack }: { runde: Runde; onBack: () => void }) {
+function PrintView({ runde, onBack, onRefresh }: { runde: Runde; onBack: () => void; onRefresh: () => void }) {
   const [mode, setMode] = useState<PrintMode>("einzelergebnisse");
 
   return (
@@ -592,6 +610,7 @@ function PrintView({ runde, onBack }: { runde: Runde; onBack: () => void }) {
         <button onClick={onBack}>Editor</button>
         <button aria-pressed={mode === "einzelergebnisse"} onClick={() => setMode("einzelergebnisse")}>Einzelergebnisse</button>
         <button aria-pressed={mode === "zusammenfassung"} onClick={() => setMode("zusammenfassung")}>Zusammenfassung</button>
+        <button onClick={onRefresh}>Aktualisieren</button>
         <button onClick={() => window.print()}>Drucken</button>
       </div>
       <h1>Druckansicht</h1>

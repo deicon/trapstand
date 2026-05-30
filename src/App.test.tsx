@@ -3,6 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 import { App } from "./App";
 import { createRunde } from "./domain/runden";
+import { refreshPwa } from "./pwa/refresh";
+
+vi.mock("./pwa/refresh", () => ({
+  refreshPwa: vi.fn(() => Promise.resolve())
+}));
 
 describe("Trapstand app", () => {
   beforeEach(() => {
@@ -10,6 +15,7 @@ describe("Trapstand app", () => {
     vi.useRealTimers();
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 });
     localStorage.clear();
+    vi.mocked(refreshPwa).mockClear();
   });
 
   it("creates a Runde, autosaves fields, records Taubenstatus and shows Ergebnis", async () => {
@@ -81,6 +87,20 @@ describe("Trapstand app", () => {
     expect(screen.getByRole("row", { name: /bernd/i })).toHaveStyle({ height: "50%" });
   });
 
+  it("offers PWA refresh from list and capture views", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: /aktualisieren/i }));
+    expect(refreshPwa).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: /neue runde/i }));
+    await user.click(screen.getByRole("button", { name: /runde starten/i }));
+    await user.click(screen.getByRole("button", { name: /aktualisieren/i }));
+
+    expect(refreshPwa).toHaveBeenCalledTimes(2);
+  });
+
   it("exports CSV, shows Druckansicht and deletes a Runde after confirmation", async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -127,7 +147,7 @@ describe("Trapstand app", () => {
     await user.click(screen.getByRole("button", { name: /runde beenden/i }));
     expect(screen.getByRole("button", { name: /schuetze hinzufuegen/i })).toBeDisabled();
     expect(screen.getAllByRole("button", { name: /^entfernen$/i })[0]).toBeDisabled();
-    expect(screen.getByText(/rotte gesperrt/i)).toBeInTheDocument();
+    expect(screen.queryByText(/rotte gesperrt/i)).not.toBeInTheDocument();
   });
 
   it("locks and unlocks a finished Runde so Ergebnisse cannot be changed", async () => {
@@ -158,12 +178,23 @@ describe("Trapstand app", () => {
     expect(screen.queryByText(/entwurf/i)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /anna/i }));
+    expect(screen.getByLabelText(/rundenzeit/i)).toBeDisabled();
+    expect(screen.getByLabelText(/schiessleiter/i)).toBeDisabled();
+    expect(screen.getByLabelText(/name schuetze 1/i)).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: /anna ist gast/i })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: /anna hat bezahlt/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /schuetze hinzufuegen/i })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: /runde starten/i }));
     expect(within(screen.getByRole("row", { name: /anna/i })).getByRole("button", { name: /taube 1 treffer entfernen/i })).toBeDisabled();
     expect(within(screen.getByRole("row", { name: /anna/i })).getByRole("button", { name: /taube 1 als fehler markieren/i })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: /runde beenden/i }));
     await user.click(screen.getByRole("button", { name: /runde entsperren/i }));
     expect(screen.queryByText(/runde gesperrt/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/rundenzeit/i)).not.toBeDisabled();
+    expect(screen.getByLabelText(/schiessleiter/i)).not.toBeDisabled();
+    expect(screen.getByLabelText(/name schuetze 1/i)).not.toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: /anna ist gast/i })).not.toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: /anna hat bezahlt/i })).not.toBeDisabled();
     await user.click(screen.getByRole("button", { name: /runde starten/i }));
     expect(screen.getByRole("button", { name: /taube 1 treffer entfernen/i })).not.toBeDisabled();
   });

@@ -260,7 +260,10 @@ input {
 }
 
 .capture-toolbar {
+  display: flex;
   flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .capture-table-wrap {
