@@ -256,6 +256,25 @@ input {
   width: 100%;
 }
 
+.name-entry {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.name-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.suggestion-button {
+  background: #edf3ef;
+  border-color: #b8c8bf;
+  font-size: 0.9rem;
+  min-height: 34px;
+  padding: 0.25rem 0.5rem;
+}
+
 .capture-shell {
   display: flex;
   flex-direction: column;

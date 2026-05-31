@@ -56,9 +56,11 @@ export function App() {
 
   function createNewRunde() {
     const runde = createEntwurf();
-    store.save(runde);
+    const defaultSchiessleiter = getDefaultSchiessleiterForDay(runden, dayKey(runde));
+    const nextRunde = defaultSchiessleiter ? { ...runde, schiessleiter: defaultSchiessleiter } : runde;
+    store.save(nextRunde);
     refreshRunden();
-    setActiveId(runde.id);
+    setActiveId(nextRunde.id);
     setView("editor");
   }
 
@@ -418,6 +420,10 @@ function RundenEditor({ runden, runde, onBack, onPrint, onStart, onChange, onMes
     onChange(updateSchuetze(runde, schuetzeId, knownShooter ? { name, gaststatus: knownShooter.gaststatus } : { name }));
   }
 
+  function applyKnownShooter(schuetzeId: string, knownShooter: KnownShooter) {
+    onChange(updateSchuetze(runde, schuetzeId, { name: knownShooter.name, gaststatus: knownShooter.gaststatus }));
+  }
+
   return (
     <section className="editor">
       <div className="editor-header">
@@ -445,22 +451,41 @@ function RundenEditor({ runden, runde, onBack, onPrint, onStart, onChange, onMes
         </label>
         <label>
           Schießleiter
-          <input
-            list="known-schiessleiter"
-            value={runde.schiessleiter}
-            aria-invalid={validationMessage ? "true" : undefined}
-            className={validationMessage ? "input-error" : undefined}
-            disabled={ergebnisseLocked}
-            onChange={(event) => {
-              setValidationMessage("");
-              onChange({ ...runde, schiessleiter: event.target.value });
-            }}
-          />
-          <datalist id="known-schiessleiter">
-            {knownSchiessleiter.map((name) => (
-              <option key={name} value={name} />
-            ))}
-          </datalist>
+          <div className="name-entry">
+            <input
+              list="known-schiessleiter"
+              value={runde.schiessleiter}
+              aria-invalid={validationMessage ? "true" : undefined}
+              className={validationMessage ? "input-error" : undefined}
+              disabled={ergebnisseLocked}
+              onChange={(event) => {
+                setValidationMessage("");
+                onChange({ ...runde, schiessleiter: event.target.value });
+              }}
+            />
+            <datalist id="known-schiessleiter">
+              {knownSchiessleiter.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
+            {!ergebnisseLocked && getVisibleSchiessleiterSuggestions(knownSchiessleiter, runde.schiessleiter).length > 0 && (
+              <div className="name-suggestions" aria-label="Vorschlaege Schießleiter">
+                {getVisibleSchiessleiterSuggestions(knownSchiessleiter, runde.schiessleiter).map((name) => (
+                  <button
+                    key={name}
+                    type="button"
+                    className="suggestion-button"
+                    onClick={() => {
+                      setValidationMessage("");
+                      onChange({ ...runde, schiessleiter: name });
+                    }}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </label>
       </div>
 
@@ -487,22 +512,41 @@ function RundenEditor({ runden, runde, onBack, onPrint, onStart, onChange, onMes
                   .filter(Boolean)
               );
               const suggestions = knownShooters.filter((knownSchuetze) => !currentNames.has(knownSchuetze.name) && knownSchuetze.name !== schuetze.name.trim());
+              const query = schuetze.name.trim().toLocaleLowerCase();
+              const visibleSuggestions = suggestions.filter((knownSchuetze) => !query || knownSchuetze.name.toLocaleLowerCase().includes(query));
 
               return (
               <tr key={schuetze.id} aria-label={schuetze.name || `Schuetze ${schuetzeIndex + 1}`}>
                 <th className="sticky-name">
-                  <input
-                    aria-label={`Name Schuetze ${schuetzeIndex + 1}`}
-                    list={datalistId}
-                    value={schuetze.name}
-                    disabled={ergebnisseLocked}
-                    onChange={(event) => updateShooterName(schuetze.id, event.target.value)}
-                  />
-                  <datalist id={datalistId}>
-                    {suggestions.map((knownSchuetze) => (
-                      <option key={knownSchuetze.name} value={knownSchuetze.name} />
-                    ))}
-                  </datalist>
+                  <div className="name-entry">
+                    <input
+                      aria-label={`Name Schuetze ${schuetzeIndex + 1}`}
+                      list={datalistId}
+                      value={schuetze.name}
+                      disabled={ergebnisseLocked}
+                      onChange={(event) => updateShooterName(schuetze.id, event.target.value)}
+                    />
+                    <datalist id={datalistId}>
+                      {suggestions.map((knownSchuetze) => (
+                        <option key={knownSchuetze.name} value={knownSchuetze.name} />
+                      ))}
+                    </datalist>
+                    {!ergebnisseLocked && visibleSuggestions.length > 0 && (
+                      <div className="name-suggestions" aria-label={`Vorschlaege Schuetze ${schuetzeIndex + 1}`}>
+                        {visibleSuggestions.map((knownSchuetze) => (
+                          <button
+                            key={knownSchuetze.name}
+                            type="button"
+                            className="suggestion-button"
+                            onClick={() => applyKnownShooter(schuetze.id, knownSchuetze)}
+                          >
+                            {knownSchuetze.name}
+                            {knownSchuetze.gaststatus ? " · Gast" : ""}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </th>
                 <td>
                   <label className="compact-check">
@@ -597,6 +641,19 @@ function getKnownSchiessleiter(runden: Runde[], activeRunde: Runde): string[] {
   }
 
   return Array.from(names).sort((a, b) => a.localeCompare(b));
+}
+
+function getDefaultSchiessleiterForDay(runden: Runde[], day: string): string {
+  const firstRunde = [...runden]
+    .filter((runde) => dayKey(runde) === day && runde.schiessleiter.trim().length > 0)
+    .sort((a, b) => a.rundenzeit.localeCompare(b.rundenzeit))[0];
+
+  return firstRunde?.schiessleiter.trim() ?? "";
+}
+
+function getVisibleSchiessleiterSuggestions(knownSchiessleiter: string[], currentValue: string): string[] {
+  const query = currentValue.trim().toLocaleLowerCase();
+  return knownSchiessleiter.filter((name) => name !== currentValue.trim() && (!query || name.toLocaleLowerCase().includes(query)));
 }
 
 interface DayPaymentDialogProps {

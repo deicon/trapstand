@@ -164,6 +164,11 @@ describe("Trapstand app", () => {
     expect(suggestions).not.toContain("Anna");
     expect(suggestions).not.toContain("Claudia");
 
+    await user.click(screen.getByRole("button", { name: /bernd · gast/i }));
+    expect(nameInput).toHaveValue("Bernd");
+    expect(screen.getByRole("checkbox", { name: /bernd ist gast/i })).toBeChecked();
+
+    await user.clear(nameInput);
     await user.type(nameInput, "Bernd");
     expect(screen.getByRole("checkbox", { name: /bernd ist gast/i })).toBeChecked();
   });
@@ -199,6 +204,44 @@ describe("Trapstand app", () => {
     const listId = schiessleiterInput.getAttribute("list");
     const suggestions = Array.from(document.querySelectorAll(`#${listId} option`)).map((option) => option.getAttribute("value"));
     expect(suggestions).toEqual(["Dieter", "Stefan"]);
+
+    await user.clear(schiessleiterInput);
+    await user.click(screen.getByRole("button", { name: /^stefan$/i }));
+    expect(schiessleiterInput).toHaveValue("Stefan");
+  });
+
+  it("prefills the Schiessleiter from the first Runde of the same day", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem(
+      "trapstand:datenbestand",
+      JSON.stringify({
+        runden: [
+          createRunde({
+            id: "zweite",
+            rundenzeit: "2026-05-31T19:00",
+            schiessleiter: "Stefan",
+            schuetzenNamen: ["Anna"]
+          }),
+          createRunde({
+            id: "erste",
+            rundenzeit: "2026-05-31T18:00",
+            schiessleiter: "Dieter",
+            schuetzenNamen: ["Bernd"]
+          }),
+          createRunde({
+            id: "anderer-tag",
+            rundenzeit: "2026-05-30T18:00",
+            schiessleiter: "Udo",
+            schuetzenNamen: ["Claudia"]
+          })
+        ]
+      })
+    );
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: /neue runde/i }));
+
+    expect(screen.getByLabelText(/schie(?:ß|ss)leiter/i)).toHaveValue("Dieter");
   });
 
   it("records the active shooter with large Treffer and Gefehlt buttons", async () => {
