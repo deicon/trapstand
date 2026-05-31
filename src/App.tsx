@@ -18,7 +18,7 @@ import { refreshPwa } from "./pwa/refresh";
 import { LocalDatenbestand } from "./storage/datenbestand";
 import "./styles.css";
 
-type View = "list" | "editor" | "capture" | "print";
+type View = "list" | "editor" | "start-confirm" | "capture" | "print" | "day-print";
 type PrintMode = "einzelergebnisse" | "zusammenfassung";
 type CaptureCursor = { schuetzeId: string; taube: number };
 
@@ -30,6 +30,7 @@ export function App() {
   const [view, setView] = useState<View>("list");
   const [message, setMessage] = useState("");
   const [deleteCandidate, setDeleteCandidate] = useState<string | null>(null);
+  const [printDay, setPrintDay] = useState<string | null>(null);
 
   const activeRunde = useMemo(() => runden.find((runde) => runde.id === activeId), [activeId, runden]);
 
@@ -108,7 +109,11 @@ export function App() {
   }
 
   if (view === "print" && activeRunde) {
-    return <PrintView runde={activeRunde} onBack={() => setView("editor")} />;
+    return <PrintView runden={[activeRunde]} onBack={() => setView("editor")} />;
+  }
+
+  if (view === "day-print" && printDay) {
+    return <PrintView runden={sortRundenNewestFirst(runden.filter((runde) => dayKey(runde) === printDay))} onBack={() => setView("list")} />;
   }
 
   if (view === "capture" && activeRunde) {
@@ -142,18 +147,29 @@ export function App() {
 
       {message && <div role="status" className="status-message">{message}</div>}
 
-      {view === "editor" && activeRunde ? (
-        <RundenEditor
-          runde={activeRunde}
-          onBack={() => {
-            setView("list");
-            setActiveId(null);
-          }}
-          onPrint={() => setView("print")}
-          onStart={() => setView("capture")}
-          onChange={updateActive}
-          onMessage={setMessage}
-        />
+      {(view === "editor" || view === "start-confirm") && activeRunde ? (
+        <>
+          <RundenEditor
+            runde={activeRunde}
+            onBack={() => {
+              setView("list");
+              setActiveId(null);
+            }}
+            onPrint={() => setView("print")}
+            onStart={() => setView("start-confirm")}
+            onChange={updateActive}
+            onMessage={setMessage}
+          />
+          {view === "start-confirm" && (
+            <ConfirmationDialog
+              message="Sind alle Schuetzen bereit?"
+              confirmLabel="OK"
+              cancelLabel="Abbrechen"
+              onConfirm={() => setView("capture")}
+              onCancel={() => setView("editor")}
+            />
+          )}
+        </>
       ) : (
         <RundenListe
           runden={runden}
@@ -165,6 +181,10 @@ export function App() {
           onAskDelete={setDeleteCandidate}
           onConfirmDelete={confirmDelete}
           onCancelDelete={() => setDeleteCandidate(null)}
+          onPrintDay={(day) => {
+            setPrintDay(day);
+            setView("day-print");
+          }}
         />
       )}
     </main>
@@ -178,23 +198,15 @@ interface RundenListeProps {
   onAskDelete: (id: string) => void;
   onConfirmDelete: (id: string) => void;
   onCancelDelete: () => void;
+  onPrintDay: (day: string) => void;
 }
 
-function RundenListe({ runden, deleteCandidate, onOpen, onAskDelete, onConfirmDelete, onCancelDelete }: RundenListeProps) {
-  const [selectedYear, setSelectedYear] = useState("alle");
-  const [selectedMonth, setSelectedMonth] = useState("alle");
-  const years = Array.from(new Set(runden.map((runde) => runde.rundenzeit.slice(0, 4)).filter(Boolean))).sort((a, b) =>
-    b.localeCompare(a)
-  );
-  const months = Array.from(new Set(runden.map((runde) => String(Number(runde.rundenzeit.slice(5, 7)))).filter(Boolean))).sort(
-    (a, b) => Number(a) - Number(b)
-  );
-  const filteredRunden = runden.filter((runde) => {
-    const year = runde.rundenzeit.slice(0, 4);
-    const month = String(Number(runde.rundenzeit.slice(5, 7)));
-    return (selectedYear === "alle" || year === selectedYear) && (selectedMonth === "alle" || month === selectedMonth);
-  });
-  const groupedRunden = groupRundenByMonth(filteredRunden);
+function RundenListe({ runden, deleteCandidate, onOpen, onAskDelete, onConfirmDelete, onCancelDelete, onPrintDay }: RundenListeProps) {
+  const [selectedDay, setSelectedDay] = useState(todayKey());
+  const days = Array.from(new Set(runden.map(dayKey).filter(Boolean))).sort((a, b) => b.localeCompare(a));
+  const filteredRunden = sortRundenNewestFirst(selectedDay === "alle" ? runden : runden.filter((runde) => dayKey(runde) === selectedDay));
+  const groupedRunden = groupRundenByDay(filteredRunden);
+  const canPrintDay = selectedDay !== "alle" && filteredRunden.length > 0;
 
   return (
     <section className="panel">
@@ -202,29 +214,21 @@ function RundenListe({ runden, deleteCandidate, onOpen, onAskDelete, onConfirmDe
       {runden.length > 0 && (
         <div className="list-filters">
           <label>
-            Jahr
-            <select value={selectedYear} onChange={(event) => setSelectedYear(event.target.value)}>
-              <option value="alle">Alle Jahre</option>
-              {years.map((year) => (
-                <option key={year} value={year}>{year}</option>
+            Tag
+            <select value={selectedDay} onChange={(event) => setSelectedDay(event.target.value)}>
+              <option value="alle">Alle</option>
+              {days.map((day) => (
+                <option key={day} value={day}>{formatDayLabel(day)}</option>
               ))}
             </select>
           </label>
-          <label>
-            Monat
-            <select value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)}>
-              <option value="alle">Alle Monate</option>
-              {months.map((month) => (
-                <option key={month} value={month}>{monthName(Number(month))}</option>
-              ))}
-            </select>
-          </label>
+          {canPrintDay && <button onClick={() => onPrintDay(selectedDay)}>Tag ausdrucken</button>}
         </div>
       )}
       {runden.length === 0 ? (
         <p className="empty-state">Keine Runden erfasst.</p>
       ) : groupedRunden.length === 0 ? (
-        <p className="empty-state">Keine Runden fuer diesen Zeitraum.</p>
+        <p className="empty-state">Keine Runden fuer diesen Tag.</p>
       ) : (
         <div className="round-groups">
           {groupedRunden.map((group) => (
@@ -270,7 +274,7 @@ function RundenListItem({ runde, deleteCandidate, onOpen, onAskDelete, onConfirm
     <li className="round-row">
       <button className="round-open" onClick={() => onOpen(runde.id)}>
         <strong>{namen}</strong>
-        <span>{formatRundenzeit(runde.rundenzeit)} · {runde.schiessleiter || "Schiessleiter offen"}</span>
+        <span>{formatRundenzeit(runde.rundenzeit)} · {runde.schiessleiter || "Schießleiter offen"}</span>
         <span>
           {statusLabel && <span className={runde.gesperrt ? "round-badge round-badge-locked" : "round-badge"}>{statusLabel}</span>}
           {statusLabel ? " · " : ""}
@@ -289,25 +293,43 @@ function RundenListItem({ runde, deleteCandidate, onOpen, onAskDelete, onConfirm
   );
 }
 
-function groupRundenByMonth(runden: Runde[]): Array<{ key: string; label: string; runden: Runde[] }> {
+function groupRundenByDay(runden: Runde[]): Array<{ key: string; label: string; runden: Runde[] }> {
   const groups = new Map<string, Runde[]>();
   for (const runde of runden) {
-    const key = runde.rundenzeit.slice(0, 7) || "unbekannt";
+    const key = dayKey(runde) || "unbekannt";
     groups.set(key, [...(groups.get(key) ?? []), runde]);
   }
 
   return Array.from(groups.entries()).map(([key, groupRunden]) => {
-    const [year, month] = key.split("-");
     return {
       key,
-      label: key === "unbekannt" ? "Ohne Datum" : `${monthName(Number(month))} ${year}`,
-      runden: groupRunden
+      label: key === "unbekannt" ? "Ohne Datum" : formatDayLabel(key),
+      runden: sortRundenNewestFirst(groupRunden)
     };
   });
 }
 
-function monthName(month: number): string {
-  return new Intl.DateTimeFormat("de-DE", { month: "long" }).format(new Date(2026, month - 1, 1));
+function sortRundenNewestFirst(runden: Runde[]): Runde[] {
+  return [...runden].sort((a, b) => b.rundenzeit.localeCompare(a.rundenzeit));
+}
+
+function dayKey(runde: Runde): string {
+  return runde.rundenzeit.slice(0, 10);
+}
+
+function todayKey(): string {
+  const today = new Date();
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+}
+
+function formatDayLabel(day: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+    return day;
+  }
+
+  const [year, month, date] = day.split("-");
+  return `${date}.${month}.${year}`;
 }
 
 function formatGastCount(count: number): string {
@@ -334,7 +356,7 @@ function RundenEditor({ runde, onBack, onPrint, onStart, onChange, onMessage }: 
 
   function toggleGesperrt() {
     if (!ergebnisseLocked && runde.schiessleiter.trim().length === 0) {
-      setValidationMessage("Schiessleiter muss gesetzt sein, bevor die Runde gesperrt wird.");
+      setValidationMessage("Schießleiter muss gesetzt sein, bevor die Runde gesperrt wird.");
       return;
     }
     setValidationMessage("");
@@ -343,6 +365,16 @@ function RundenEditor({ runde, onBack, onPrint, onStart, onChange, onMessage }: 
     if (!ergebnisseLocked) {
       onBack();
     }
+  }
+
+  function startRunde() {
+    if (runde.schiessleiter.trim().length === 0) {
+      setValidationMessage("Schießleiter muss gesetzt sein, bevor die Runde gestartet wird.");
+      return;
+    }
+
+    setValidationMessage("");
+    onStart();
   }
 
   return (
@@ -355,7 +387,7 @@ function RundenEditor({ runde, onBack, onPrint, onStart, onChange, onMessage }: 
         <div className="editor-actions">
           <button onClick={onBack}>Zurueck zur Liste</button>
           <button onClick={onPrint}>Druckansicht</button>
-          <button onClick={onStart}>Runde starten</button>
+          <button onClick={startRunde}>Runde starten</button>
           <button onClick={toggleGesperrt}>{ergebnisseLocked ? "Runde entsperren" : "Runde sperren"}</button>
         </div>
       </div>
@@ -371,7 +403,7 @@ function RundenEditor({ runde, onBack, onPrint, onStart, onChange, onMessage }: 
           />
         </label>
         <label>
-          Schiessleiter
+          Schießleiter
           <input
             value={runde.schiessleiter}
             aria-invalid={validationMessage ? "true" : undefined}
@@ -465,6 +497,7 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
   const isPhoneWidth = useWindowWidth() <= 640;
   const [taubenPage, setTaubenPage] = useState(0);
   const [manualCursor, setManualCursor] = useState<CaptureCursor | null>(null);
+  const [safetyPending, setSafetyPending] = useState(false);
   const taubenPageSize = isPhoneWidth ? 5 : 25;
   const taubenPageCount = Math.ceil(25 / taubenPageSize);
   const activeTaubenPage = Math.min(taubenPage, taubenPageCount - 1);
@@ -473,6 +506,7 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
   const visibleTauben = Array.from({ length: lastTaubeIndex - firstTaubeIndex }, (_, index) => firstTaubeIndex + index + 1);
   const ergebnisseLocked = runde.gesperrt === true;
   const activeCursor = isValidCursor(runde, manualCursor) ? manualCursor : getNextCaptureCursor(runde);
+  const inputsDisabled = ergebnisseLocked || safetyPending;
 
   useEffect(() => {
     setTaubenPage(0);
@@ -487,18 +521,30 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
   }, [activeCursor?.taube, taubenPageSize]);
 
   function recordActive(status: Exclude<Taubenstatus, "offen">) {
-    if (!activeCursor || ergebnisseLocked) {
+    if (!activeCursor || inputsDisabled) {
       return;
     }
 
     onChange(setTaubenstatus(runde, activeCursor.schuetzeId, activeCursor.taube, status));
-    setManualCursor(getFollowingCaptureCursor(runde, activeCursor));
+    const followingCursor = getFollowingCaptureCursor(runde, activeCursor);
+    setManualCursor(followingCursor);
+    if (!followingCursor) {
+      setSafetyPending(true);
+    }
   }
 
   function updateTaube(schuetzeId: string, taube: number, status: Taubenstatus) {
+    if (inputsDisabled) {
+      return;
+    }
+
     const nextRunde = setTaubenstatus(runde, schuetzeId, taube, status);
+    const nextCursor = getNextCaptureCursor(nextRunde);
     onChange(nextRunde);
-    setManualCursor(getNextCaptureCursor(nextRunde));
+    setManualCursor(nextCursor);
+    if (!nextCursor) {
+      setSafetyPending(true);
+    }
   }
 
   return (
@@ -508,9 +554,11 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
       </div>
 
       <div className="quick-score-actions" aria-label="Schnellerfassung">
-        <button className="quick-score quick-score-hit" disabled={ergebnisseLocked || !activeCursor} onClick={() => recordActive("getroffen")}>Treffer</button>
-        <button className="quick-score quick-score-miss" disabled={ergebnisseLocked || !activeCursor} onClick={() => recordActive("verfehlt")}>Gefehlt</button>
+        <button className="quick-score quick-score-hit" disabled={inputsDisabled || !activeCursor} onClick={() => recordActive("getroffen")}>Treffer</button>
+        <button className="quick-score quick-score-miss" disabled={inputsDisabled || !activeCursor} onClick={() => recordActive("verfehlt")}>Gefehlt</button>
       </div>
+
+      {activeCursor?.taube === 25 && <div className="last-round-warning">Letzte Runde beginnt!</div>}
 
       {isPhoneWidth && (
         <div className="tauben-pager" aria-label="Tauben Navigation">
@@ -553,7 +601,7 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
                       nummer={taube.nummer}
                       status={taube.status}
                       zwischenstand={zwischenstandBis(schuetze, firstTaubeIndex + index)}
-                      disabled={ergebnisseLocked}
+                      disabled={inputsDisabled}
                       isActive={activeCursor?.schuetzeId === schuetze.id && activeCursor.taube === taube.nummer}
                       onChange={(status) => updateTaube(schuetze.id, taube.nummer, status)}
                     />
@@ -565,7 +613,41 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
           </tbody>
         </table>
       </div>
+
+      {safetyPending && (
+        <ConfirmationDialog
+          message="Sicherheit hergestellt?"
+          confirmLabel="OK"
+          onConfirm={() => setSafetyPending(false)}
+        />
+      )}
     </main>
+  );
+}
+
+function ConfirmationDialog({
+  message,
+  confirmLabel,
+  cancelLabel,
+  onConfirm,
+  onCancel
+}: {
+  message: string;
+  confirmLabel: string;
+  cancelLabel?: string;
+  onConfirm: () => void;
+  onCancel?: () => void;
+}) {
+  return (
+    <div className="dialog-backdrop">
+      <div className="dialog-panel" role="dialog" aria-modal="true" aria-label={message}>
+        <p>{message}</p>
+        <div className="dialog-actions">
+          {cancelLabel && <button onClick={onCancel}>{cancelLabel}</button>}
+          <button onClick={onConfirm}>{confirmLabel}</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -683,21 +765,34 @@ function sequenceIndex(taube: number, schuetzeIndex: number, rotteSize: number):
   return (taube - 1) * rotteSize + schuetzeIndex;
 }
 
-function PrintView({ runde, onBack }: { runde: Runde; onBack: () => void }) {
+function PrintView({ runden, onBack }: { runden: Runde[]; onBack: () => void }) {
   const [mode, setMode] = useState<PrintMode>("einzelergebnisse");
 
   return (
     <main className="print-view">
       <div className="print-actions">
-        <button onClick={onBack}>Editor</button>
+        <button onClick={onBack}>Zurueck</button>
         <button aria-pressed={mode === "einzelergebnisse"} onClick={() => setMode("einzelergebnisse")}>Einzelergebnisse</button>
         <button aria-pressed={mode === "zusammenfassung"} onClick={() => setMode("zusammenfassung")}>Zusammenfassung</button>
         <button onClick={() => window.print()}>Drucken</button>
       </div>
       <h1>Druckansicht</h1>
-      <p>{formatRundenzeit(runde.rundenzeit)} · Schiessleiter: {runde.schiessleiter}</p>
-      {mode === "einzelergebnisse" ? <PrintEinzelergebnisse runde={runde} /> : <PrintZusammenfassung runde={runde} />}
+      {runden.map((runde) => (
+        <section key={runde.id} className="print-round">
+          <p>{formatRundenzeit(runde.rundenzeit)} · Schießleiter: {runde.schiessleiter}</p>
+          {mode === "einzelergebnisse" ? <PrintEinzelergebnisse runde={runde} /> : <PrintZusammenfassung runde={runde} />}
+          <PrintSignature />
+        </section>
+      ))}
     </main>
+  );
+}
+
+function PrintSignature() {
+  return (
+    <div className="print-signature">
+      <span>Ort, Datum und Unterschrift der Standaufsicht</span>
+    </div>
   );
 }
 

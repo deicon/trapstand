@@ -299,6 +299,17 @@ input {
   opacity: 0.45;
 }
 
+.last-round-warning {
+  background: #fff2cf;
+  border: 1px solid #d8b45f;
+  border-radius: 6px;
+  flex: 0 0 auto;
+  font-size: 1.15rem;
+  font-weight: 800;
+  padding: 0.65rem 0.8rem;
+  text-align: center;
+}
+
 .capture-table-wrap {
   flex: 1 1 auto;
   margin-bottom: 0;
@@ -370,6 +381,54 @@ input {
   50% {
     box-shadow: 0 0 0 5px rgba(17, 24, 39, 0.42);
   }
+}
+
+.dialog-backdrop {
+  align-items: center;
+  background: rgba(17, 24, 39, 0.48);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 1rem;
+  position: fixed;
+  z-index: 20;
+}
+
+.dialog-panel {
+  background: #ffffff;
+  border: 1px solid #c7cec9;
+  border-radius: 8px;
+  box-shadow: 0 24px 80px rgba(17, 24, 39, 0.24);
+  max-width: 420px;
+  padding: 1rem;
+  width: min(100%, 420px);
+}
+
+.dialog-panel p {
+  font-size: 1.25rem;
+  font-weight: 800;
+  margin: 0 0 1rem;
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.print-round {
+  margin-bottom: 1.5rem;
+  break-inside: avoid;
+}
+
+.print-signature {
+  border-top: 1px solid #1a1f1d;
+  margin-top: 2rem;
+  padding-top: 0.45rem;
+}
+
+.print-signature span {
+  font-weight: 700;
 }
 
 .score-table th,
