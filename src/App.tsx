@@ -793,7 +793,7 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
   }
 
   function confirmSafety() {
-    onChange({ ...runde, sicherheitBestaetigt: true });
+    onChange({ ...runde, sicherheitBestaetigt: true, gesperrt: true });
     setSafetyPending(false);
   }
 

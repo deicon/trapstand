@@ -293,15 +293,15 @@ describe("Trapstand app", () => {
     expect(screen.getByRole("button", { name: /^treffer$/i })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: /^ok$/i }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-
-    await user.click(within(screen.getByRole("row", { name: /anna/i })).getByRole("button", { name: /taube 25 treffer entfernen/i }));
-    await user.click(screen.getByRole("button", { name: /^treffer$/i }));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^treffer$/i })).toBeDisabled();
+    expect(within(screen.getByRole("row", { name: /anna/i })).getByRole("button", { name: /taube 25 treffer entfernen/i })).toBeDisabled();
 
     await user.click(screen.getByRole("button", { name: /runde beenden/i }));
+    expect(screen.getByRole("button", { name: /runde entsperren/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/name schuetze 1/i)).toBeDisabled();
     await startRunde(user);
-    await user.click(within(screen.getByRole("row", { name: /anna/i })).getByRole("button", { name: /taube 25 treffer entfernen/i }));
-    await user.click(screen.getByRole("button", { name: /^treffer$/i }));
+    expect(screen.getByRole("button", { name: /^treffer$/i })).toBeDisabled();
+    expect(within(screen.getByRole("row", { name: /anna/i })).getByRole("button", { name: /taube 25 treffer entfernen/i })).toBeDisabled();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
