@@ -838,6 +838,7 @@ interface DayPaymentDialogProps {
 
 function DayPaymentDialog({ day, runden, onTogglePaid, onClose }: DayPaymentDialogProps) {
   const shooters = getDayPaymentShooters(runden);
+  const totalAmountCent = shooters.reduce((sum, schuetze) => sum + schuetze.amountCent, 0);
 
   return (
     <div className="dialog-backdrop">
@@ -856,12 +857,18 @@ function DayPaymentDialog({ day, runden, onTogglePaid, onClose }: DayPaymentDial
                   checked={schuetze.paid}
                   onChange={(event) => onTogglePaid(schuetze.name, event.target.checked)}
                 />
-                <span className="payment-name">{schuetze.name}</span>
-                <span>{formatRoundCount(schuetze.roundCount)}</span>
-                <span>{formatMoney(schuetze.amountCent)}</span>
-                {schuetze.gaststatus && <span className="round-badge">Gast</span>}
+                <span className="payment-person">
+                  <span className="payment-name">{schuetze.name}</span>
+                  {schuetze.gaststatus && <span className="round-badge">Gast</span>}
+                </span>
+                <span className="payment-rounds">{formatRoundCount(schuetze.roundCount)}</span>
+                <span className="payment-amount">{formatMoney(schuetze.amountCent)}</span>
               </label>
             ))}
+            <div className="payment-total">
+              <span>Summe</span>
+              <span>{formatMoney(totalAmountCent)}</span>
+            </div>
           </div>
         )}
         <div className="dialog-actions">

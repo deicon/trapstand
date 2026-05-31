@@ -634,6 +634,7 @@ describe("Trapstand app", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent(/2 runden/i);
     expect(screen.getByRole("dialog")).toHaveTextContent(/gast/i);
     expect(screen.getByRole("dialog")).toHaveTextContent(/13,00\s*€/i);
+    expect(screen.getByRole("dialog")).toHaveTextContent(/summe/i);
 
     await user.click(screen.getByRole("checkbox", { name: /bernd bezahlt/i }));
     await user.click(screen.getByRole("button", { name: /schliessen/i }));
