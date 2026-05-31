@@ -147,12 +147,21 @@ input {
   margin-bottom: 1rem;
 }
 
+.settings-strip,
 .price-editor {
   align-items: end;
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
   margin-bottom: 1rem;
+}
+
+.settings-strip {
+  align-items: center;
+}
+
+.settings-strip span {
+  font-weight: 700;
 }
 
 .list-filters label {
@@ -165,6 +174,10 @@ input {
   display: grid;
   gap: 0.3rem;
   min-width: 140px;
+}
+
+.settings-dialog h2 {
+  margin: 0 0 1rem;
 }
 
 .list-filters select {

@@ -300,6 +300,7 @@ interface RundenListeProps {
 
 function RundenListe({ runden, preise, deleteCandidate, onOpen, onAskDelete, onConfirmDelete, onCancelDelete, onPrintDay, onPayDay, onPreiseChange }: RundenListeProps) {
   const [selectedDay, setSelectedDay] = useState(todayKey());
+  const [showSettings, setShowSettings] = useState(false);
   const days = Array.from(new Set(runden.map(dayKey).filter(Boolean))).sort((a, b) => b.localeCompare(a));
   const filteredRunden = sortRundenNewestFirst(selectedDay === "alle" ? runden : runden.filter((runde) => dayKey(runde) === selectedDay));
   const groupedRunden = groupRundenByDay(filteredRunden);
@@ -308,7 +309,17 @@ function RundenListe({ runden, preise, deleteCandidate, onOpen, onAskDelete, onC
   return (
     <section className="panel">
       <h2>Rundenliste</h2>
-      <PreiseEditor preise={preise} onChange={onPreiseChange} />
+      <div className="settings-strip">
+        <span>Preise: Mitglied {formatMoney(preise.mitgliedCent)} · Gast {formatMoney(preise.gastCent)}</span>
+        <button onClick={() => setShowSettings(true)}>Einstellungen</button>
+      </div>
+      {showSettings && (
+        <SettingsDialog
+          preise={preise}
+          onChange={onPreiseChange}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
       {runden.length > 0 && (
         <div className="list-filters">
           <label>
@@ -351,6 +362,20 @@ function RundenListe({ runden, preise, deleteCandidate, onOpen, onAskDelete, onC
         </div>
       )}
     </section>
+  );
+}
+
+function SettingsDialog({ preise, onChange, onClose }: { preise: RundenPreise; onChange: (preise: RundenPreise) => void; onClose: () => void }) {
+  return (
+    <div className="dialog-backdrop">
+      <div className="dialog-panel settings-dialog" role="dialog" aria-modal="true" aria-label="Einstellungen">
+        <h2>Einstellungen</h2>
+        <PreiseEditor preise={preise} onChange={onChange} />
+        <div className="dialog-actions">
+          <button onClick={onClose}>Schliessen</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -490,6 +515,37 @@ function getSchuetzenPreisCent(runde: Runde, schuetze: Schuetze): number {
 
 function getEingenommenCent(runde: Runde): number {
   return runde.rotte.reduce((sum, schuetze) => sum + (schuetze.zahlungsstatus ? getSchuetzenPreisCent(runde, schuetze) : 0), 0);
+}
+
+function getRundengeld(runde: Runde): { mitgliederCent: number; gaesteCent: number; gesamtCent: number } {
+  const mitgliederCent = runde.rotte.reduce(
+    (sum, schuetze) => sum + (schuetze.zahlungsstatus && !schuetze.gaststatus ? getSchuetzenPreisCent(runde, schuetze) : 0),
+    0
+  );
+  const gaesteCent = runde.rotte.reduce(
+    (sum, schuetze) => sum + (schuetze.zahlungsstatus && schuetze.gaststatus ? getSchuetzenPreisCent(runde, schuetze) : 0),
+    0
+  );
+
+  return {
+    mitgliederCent,
+    gaesteCent,
+    gesamtCent: mitgliederCent + gaesteCent
+  };
+}
+
+function sumRundengeld(runden: Runde[]): { mitgliederCent: number; gaesteCent: number; gesamtCent: number } {
+  return runden.reduce(
+    (sum, runde) => {
+      const rundengeld = getRundengeld(runde);
+      return {
+        mitgliederCent: sum.mitgliederCent + rundengeld.mitgliederCent,
+        gaesteCent: sum.gaesteCent + rundengeld.gaesteCent,
+        gesamtCent: sum.gesamtCent + rundengeld.gesamtCent
+      };
+    },
+    { mitgliederCent: 0, gaesteCent: 0, gesamtCent: 0 }
+  );
 }
 
 interface RundenEditorProps {
@@ -1137,6 +1193,7 @@ function sequenceIndex(taube: number, schuetzeIndex: number, rotteSize: number):
 
 function PrintView({ runden, onBack }: { runden: Runde[]; onBack: () => void }) {
   const [mode, setMode] = useState<PrintMode>("einzelergebnisse");
+  const totalRundengeld = sumRundengeld(runden);
 
   return (
     <main className="print-view">
@@ -1149,13 +1206,24 @@ function PrintView({ runden, onBack }: { runden: Runde[]; onBack: () => void }) 
       <h1>Druckansicht</h1>
       {runden.map((runde) => (
         <section key={runde.id} className="print-round">
+          {(() => {
+            const rundengeld = getRundengeld(runde);
+            return (
+              <>
           <p>{formatRundenzeit(runde.rundenzeit)} · Schießleiter: {runde.schiessleiter}</p>
           {mode === "einzelergebnisse" ? <PrintEinzelergebnisse runde={runde} /> : <PrintZusammenfassung runde={runde} />}
-          <p className="print-money">Rundengeld: {formatMoney(getEingenommenCent(runde))}</p>
+          <p className="print-money">
+            Rundengeld: Mitglieder {formatMoney(rundengeld.mitgliederCent)} · Gäste {formatMoney(rundengeld.gaesteCent)} · Gesamt {formatMoney(rundengeld.gesamtCent)}
+          </p>
           <PrintSignature />
+              </>
+            );
+          })()}
         </section>
       ))}
-      <p className="print-money print-money-total">Rundengeld gesamt: {formatMoney(runden.reduce((sum, runde) => sum + getEingenommenCent(runde), 0))}</p>
+      <p className="print-money print-money-total">
+        Rundengeld gesamt: Mitglieder {formatMoney(totalRundengeld.mitgliederCent)} · Gäste {formatMoney(totalRundengeld.gaesteCent)} · Gesamt {formatMoney(totalRundengeld.gesamtCent)}
+      </p>
     </main>
   );
 }

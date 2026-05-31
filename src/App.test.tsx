@@ -91,13 +91,20 @@ describe("Trapstand app", () => {
     } as Response);
     render(<App />);
 
-    await waitFor(() => expect(screen.getByLabelText(/^mitglied$/i)).toHaveValue(6));
-    expect(screen.getByLabelText(/^gast$/i)).toHaveValue(9);
+    await waitFor(() => expect(screen.getByText(/preise: mitglied 6,00/i)).toBeInTheDocument());
+    expect(screen.queryByLabelText(/^mitglied$/i)).not.toBeInTheDocument();
 
+    await user.click(screen.getByRole("button", { name: /einstellungen/i }));
+    expect(screen.getByLabelText(/^mitglied$/i)).toHaveValue(6);
+    expect(screen.getByLabelText(/^gast$/i)).toHaveValue(9);
     await user.clear(screen.getByLabelText(/^mitglied$/i));
     await user.type(screen.getByLabelText(/^mitglied$/i), "7");
     await user.clear(screen.getByLabelText(/^gast$/i));
     await user.type(screen.getByLabelText(/^gast$/i), "10");
+    await user.click(screen.getByRole("button", { name: /schliessen/i }));
+    expect(screen.queryByLabelText(/^mitglied$/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/preise: mitglied 7,00/i)).toBeInTheDocument();
+
     await user.click(screen.getByRole("button", { name: /neue runde/i }));
 
     const datenbestand = JSON.parse(localStorage.getItem("trapstand:datenbestand") ?? "{}");
@@ -589,9 +596,9 @@ describe("Trapstand app", () => {
     expect(screen.queryByText(/leiter alt/i)).not.toBeInTheDocument();
     expect(screen.getByText(/anna/i)).toBeInTheDocument();
     expect(screen.getByText(/bernd/i)).toBeInTheDocument();
-    expect(screen.getByText(/rundengeld: 5,00/i)).toBeInTheDocument();
-    expect(screen.getByText(/rundengeld: 8,00/i)).toBeInTheDocument();
-    expect(screen.getByText(/rundengeld gesamt: 13,00/i)).toBeInTheDocument();
+    expect(screen.getByText(/rundengeld: mitglieder 5,00.*gäste 0,00.*gesamt 5,00/i)).toBeInTheDocument();
+    expect(screen.getByText(/rundengeld: mitglieder 0,00.*gäste 8,00.*gesamt 8,00/i)).toBeInTheDocument();
+    expect(screen.getByText(/rundengeld gesamt: mitglieder 5,00.*gäste 8,00.*gesamt 13,00/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /zusammenfassung/i }));
     expect(screen.getAllByRole("columnheader", { name: /^gast$/i })).toHaveLength(2);
