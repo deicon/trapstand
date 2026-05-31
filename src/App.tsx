@@ -107,7 +107,7 @@ export function App() {
   }
 
   if (view === "print" && activeRunde) {
-    return <PrintView runde={activeRunde} onBack={() => setView("editor")} onRefresh={() => void handleAppRefresh()} />;
+    return <PrintView runde={activeRunde} onBack={() => setView("editor")} />;
   }
 
   if (view === "capture" && activeRunde) {
@@ -115,7 +115,6 @@ export function App() {
       <RundenErfassung
         runde={activeRunde}
         onEnd={() => setView("editor")}
-        onRefresh={() => void handleAppRefresh()}
         onChange={updateActive}
       />
     );
@@ -130,9 +129,9 @@ export function App() {
         </div>
         <div className="topbar-actions">
           <button onClick={createNewRunde}>Neue Runde</button>
-          <button onClick={() => void handleAppRefresh()}>Aktualisieren</button>
           <button onClick={exportCsv}>CSV</button>
           <button onClick={exportBackup}>JSON Backup</button>
+          {view === "list" && <button className="quiet-button" onClick={() => void handleAppRefresh()}>Aktualisieren</button>}
           <label className="file-action">
             Import
             <input type="file" accept="application/json,.json" onChange={(event) => void importBackup(event.target.files?.[0])} />
@@ -458,11 +457,10 @@ function RundenEditor({ runde, onBack, onPrint, onStart, onChange, onMessage }: 
 interface RundenErfassungProps {
   runde: Runde;
   onEnd: () => void;
-  onRefresh: () => void;
   onChange: (runde: Runde) => void;
 }
 
-function RundenErfassung({ runde, onEnd, onRefresh, onChange }: RundenErfassungProps) {
+function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
   const isPhoneWidth = useWindowWidth() <= 640;
   const [taubenPage, setTaubenPage] = useState(0);
   const taubenPageSize = isPhoneWidth ? 5 : 25;
@@ -481,7 +479,6 @@ function RundenErfassung({ runde, onEnd, onRefresh, onChange }: RundenErfassungP
     <main className="capture-shell">
       <div className="capture-toolbar">
         <button onClick={onEnd}>Runde beenden</button>
-        <button onClick={onRefresh}>Aktualisieren</button>
       </div>
 
       {isPhoneWidth && (
@@ -601,7 +598,7 @@ function zwischenstandBis(schuetze: { tauben: { status: Taubenstatus }[] }, inde
   return schuetze.tauben.slice(0, index + 1).filter((taube) => taube.status === "getroffen").length;
 }
 
-function PrintView({ runde, onBack, onRefresh }: { runde: Runde; onBack: () => void; onRefresh: () => void }) {
+function PrintView({ runde, onBack }: { runde: Runde; onBack: () => void }) {
   const [mode, setMode] = useState<PrintMode>("einzelergebnisse");
 
   return (
@@ -610,7 +607,6 @@ function PrintView({ runde, onBack, onRefresh }: { runde: Runde; onBack: () => v
         <button onClick={onBack}>Editor</button>
         <button aria-pressed={mode === "einzelergebnisse"} onClick={() => setMode("einzelergebnisse")}>Einzelergebnisse</button>
         <button aria-pressed={mode === "zusammenfassung"} onClick={() => setMode("zusammenfassung")}>Zusammenfassung</button>
-        <button onClick={onRefresh}>Aktualisieren</button>
         <button onClick={() => window.print()}>Drucken</button>
       </div>
       <h1>Druckansicht</h1>

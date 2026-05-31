@@ -35,6 +35,12 @@ button:disabled {
   opacity: 0.55;
 }
 
+.quiet-button {
+  background: #f3f6f4;
+  border-color: #c7cec9;
+  color: #35423b;
+}
+
 input {
   border: 1px solid #9aa39f;
   border-radius: 6px;

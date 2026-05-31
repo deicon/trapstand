@@ -87,7 +87,7 @@ describe("Trapstand app", () => {
     expect(screen.getByRole("row", { name: /bernd/i })).toHaveStyle({ height: "50%" });
   });
 
-  it("offers PWA refresh from list and capture views", async () => {
+  it("offers PWA refresh only from the list view", async () => {
     const user = userEvent.setup();
     render(<App />);
 
@@ -95,10 +95,14 @@ describe("Trapstand app", () => {
     expect(refreshPwa).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole("button", { name: /neue runde/i }));
+    expect(screen.queryByRole("button", { name: /aktualisieren/i })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /runde starten/i }));
-    await user.click(screen.getByRole("button", { name: /aktualisieren/i }));
+    expect(screen.queryByRole("button", { name: /aktualisieren/i })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /runde beenden/i }));
+    await user.click(screen.getByRole("button", { name: /druckansicht/i }));
+    expect(screen.queryByRole("button", { name: /aktualisieren/i })).not.toBeInTheDocument();
 
-    expect(refreshPwa).toHaveBeenCalledTimes(2);
+    expect(refreshPwa).toHaveBeenCalledTimes(1);
   });
 
   it("exports CSV, shows Druckansicht and deletes a Runde after confirmation", async () => {
