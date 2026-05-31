@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 import { App } from "./App";
@@ -24,6 +24,8 @@ describe("Trapstand app", () => {
     vi.restoreAllMocks();
     vi.useRealTimers();
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 });
+    Object.defineProperty(navigator, "share", { configurable: true, value: undefined });
+    Object.defineProperty(navigator, "canShare", { configurable: true, value: undefined });
     localStorage.clear();
     vi.mocked(refreshPwa).mockClear();
   });
@@ -616,11 +618,38 @@ describe("Trapstand app", () => {
 
     await user.click(screen.getByRole("button", { name: /json backup/i }));
 
-    expect(canShare).toHaveBeenCalled();
-    expect(share).toHaveBeenCalledWith(
+    await waitFor(() => expect(share).toHaveBeenCalledWith(
       expect.objectContaining({
         title: "trapstand-backup.json",
         files: [expect.objectContaining({ name: "trapstand-backup.json", type: "text/plain" })]
+      })
+    ));
+    expect(canShare).toHaveBeenCalled();
+  });
+
+  it("shares CSV as a text file when text/csv is not shareable", async () => {
+    const user = userEvent.setup();
+    const share = vi.fn();
+    const canShare = vi.fn((payload: ShareData) => {
+      const file = payload.files?.[0];
+      return file?.name === "trapstand-runden.csv" && file.type === "text/plain";
+    });
+    Object.defineProperty(navigator, "share", { configurable: true, value: share });
+    Object.defineProperty(navigator, "canShare", { configurable: true, value: canShare });
+
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: /^csv$/i }));
+
+    await waitFor(() => expect(share).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "trapstand-runden.csv",
+        files: [expect.objectContaining({ name: "trapstand-runden.csv", type: "text/plain" })]
+      })
+    ));
+    expect(canShare).toHaveBeenCalledWith(
+      expect.objectContaining({
+        files: [expect.objectContaining({ name: "trapstand-runden.csv", type: "text/csv" })]
       })
     );
   });
@@ -630,6 +659,7 @@ describe("Trapstand app", () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: /csv/i }));
+    await act(async () => {});
 
     expect(screen.getByRole("status")).toHaveTextContent(/csv-export vorbereitet/i);
 

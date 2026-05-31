@@ -68,15 +68,15 @@ export function App() {
     saveRunde(next);
   }
 
-  function exportCsv() {
+  async function exportCsv() {
     const csv = exportRundenCsv(runden);
-    downloadOrShare("trapstand-runden.csv", csv, "text/csv");
+    await downloadOrShare("trapstand-runden.csv", csv, "text/csv");
     setMessage("CSV-Export vorbereitet.");
   }
 
-  function exportBackup() {
+  async function exportBackup() {
     const json = exportBackupJson(store.export());
-    downloadOrShare("trapstand-backup.json", json, "text/plain");
+    await downloadOrShare("trapstand-backup.json", json, "text/plain");
     setMessage("Backup-Export vorbereitet.");
   }
 
@@ -156,8 +156,8 @@ export function App() {
         </div>
         <div className="topbar-actions">
           <button onClick={createNewRunde}>Neue Runde</button>
-          <button onClick={exportCsv}>CSV</button>
-          <button onClick={exportBackup}>JSON Backup</button>
+          <button onClick={() => void exportCsv()}>CSV</button>
+          <button onClick={() => void exportBackup()}>JSON Backup</button>
           {view === "list" && <button className="quiet-button" onClick={() => void handleAppRefresh()}>Aktualisieren</button>}
           <label className="file-action">
             Import
@@ -1105,18 +1105,38 @@ function formatRundenzeit(value: string): string {
   return value.replace("T", " ");
 }
 
-function downloadOrShare(filename: string, content: string, type: string) {
-  const file = new File([content], filename, { type });
-  if (navigator.canShare?.({ files: [file] }) && navigator.share) {
-    void navigator.share({ files: [file], title: filename });
-    return;
+async function downloadOrShare(filename: string, content: string, type: string) {
+  const files = [
+    new File([content], filename, { type }),
+    ...(type === "text/plain" ? [] : [new File([content], filename, { type: "text/plain" })])
+  ];
+
+  if (navigator.share) {
+    for (const file of files) {
+      const shareData = { files: [file], title: filename };
+      if (!navigator.canShare || navigator.canShare(shareData)) {
+        try {
+          await navigator.share(shareData);
+          return;
+        } catch {
+          break;
+        }
+      }
+    }
+
+    try {
+      await navigator.share({ title: filename, text: content });
+      return;
+    } catch {
+      // Fall back to a local download below.
+    }
   }
 
   if (!URL.createObjectURL) {
     return;
   }
 
-  const url = URL.createObjectURL(file);
+  const url = URL.createObjectURL(files[0]);
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;
