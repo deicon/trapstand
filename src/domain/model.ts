@@ -13,17 +13,24 @@ export interface Schuetze {
   tauben: Taube[];
 }
 
+export interface RundenPreise {
+  mitgliedCent: number;
+  gastCent: number;
+}
+
 export interface Runde {
   id: string;
   rundenzeit: string;
   schiessleiter: string;
   gesperrt?: boolean;
   sicherheitBestaetigt?: boolean;
+  preise?: RundenPreise;
   rotte: Schuetze[];
 }
 
 export interface Datenbestand {
   runden: Runde[];
+  preise?: RundenPreise;
 }
 
 export type RundenStatus = "entwurf" | "vollstaendig" | "gesperrt";

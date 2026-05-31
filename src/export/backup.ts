@@ -1,4 +1,4 @@
-import type { Datenbestand, Runde, Schuetze, Taube, Taubenstatus } from "../domain/model";
+import type { Datenbestand, Runde, RundenPreise, Schuetze, Taube, Taubenstatus } from "../domain/model";
 
 const backupVersion = 1;
 
@@ -12,17 +12,17 @@ export function importBackupJson(json: string): Datenbestand {
     if (!isDatenbestandBackup(parsed)) {
       throw new Error("invalid");
     }
-    return { runden: parsed.runden };
+    return parsed.preise ? { runden: parsed.runden, preise: parsed.preise } : { runden: parsed.runden };
   } catch {
     throw new Error("Ungueltiger Backup-Export.");
   }
 }
 
-function isDatenbestandBackup(value: unknown): value is { version: number; runden: Runde[] } {
+function isDatenbestandBackup(value: unknown): value is { version: number; runden: Runde[]; preise?: RundenPreise } {
   if (!isRecord(value) || value.version !== backupVersion || !Array.isArray(value.runden)) {
     return false;
   }
-  return value.runden.every(isRunde);
+  return (value.preise === undefined || isPreise(value.preise)) && value.runden.every(isRunde);
 }
 
 function isRunde(value: unknown): value is Runde {
@@ -32,11 +32,17 @@ function isRunde(value: unknown): value is Runde {
     typeof value.rundenzeit === "string" &&
     typeof value.schiessleiter === "string" &&
     (value.gesperrt === undefined || typeof value.gesperrt === "boolean") &&
+    (value.sicherheitBestaetigt === undefined || typeof value.sicherheitBestaetigt === "boolean") &&
+    (value.preise === undefined || isPreise(value.preise)) &&
     Array.isArray(value.rotte) &&
     value.rotte.length >= 1 &&
     value.rotte.length <= 6 &&
     value.rotte.every(isSchuetze)
   );
+}
+
+function isPreise(value: unknown): value is RundenPreise {
+  return isRecord(value) && typeof value.mitgliedCent === "number" && typeof value.gastCent === "number";
 }
 
 function isSchuetze(value: unknown): value is Schuetze {

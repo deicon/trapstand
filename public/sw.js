@@ -1,6 +1,6 @@
 const CACHE_NAME = "trapstand-v1";
 const BASE_URL = new URL(self.registration.scope).pathname;
-const APP_SHELL = [BASE_URL, `${BASE_URL}manifest.webmanifest`, `${BASE_URL}icon.svg`];
+const APP_SHELL = [BASE_URL, `${BASE_URL}manifest.webmanifest`, `${BASE_URL}icon.svg`, `${BASE_URL}assets/settings.json`, `${BASE_URL}bad-camberg-logo.jpg`];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));

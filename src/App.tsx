@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Runde, Schuetze, Taubenstatus } from "./domain/model";
+import type { Runde, RundenPreise, Schuetze, Taubenstatus } from "./domain/model";
 import {
+  DEFAULT_PREISE,
   addSchuetze,
   createEntwurf,
   cumulativeErgebnisse,
@@ -26,6 +27,7 @@ const store = new LocalDatenbestand();
 
 export function App() {
   const [runden, setRunden] = useState<Runde[]>(() => store.list());
+  const [preise, setPreise] = useState<RundenPreise>(() => store.getPreise());
   const [activeId, setActiveId] = useState<string | null>(null);
   const [view, setView] = useState<View>("list");
   const [message, setMessage] = useState("");
@@ -34,6 +36,21 @@ export function App() {
   const [paymentDay, setPaymentDay] = useState<string | null>(null);
 
   const activeRunde = useMemo(() => runden.find((runde) => runde.id === activeId), [activeId, runden]);
+
+  useEffect(() => {
+    if (store.hasPreise()) {
+      return;
+    }
+
+    void loadSettings().then((settings) => {
+      if (!settings || store.hasPreise()) {
+        return;
+      }
+
+      store.savePreise(settings.preise);
+      setPreise(store.getPreise());
+    });
+  }, []);
 
   useEffect(() => {
     if (!message) {
@@ -46,6 +63,7 @@ export function App() {
 
   function refreshRunden() {
     setRunden(store.list());
+    setPreise(store.getPreise());
   }
 
   function saveRunde(next: Runde) {
@@ -55,7 +73,7 @@ export function App() {
   }
 
   function createNewRunde() {
-    const runde = createEntwurf();
+    const runde = createEntwurf(undefined, undefined, preise);
     const defaultSchiessleiter = getDefaultSchiessleiterForDay(runden, dayKey(runde));
     const nextRunde = defaultSchiessleiter ? { ...runde, schiessleiter: defaultSchiessleiter } : runde;
     store.save(nextRunde);
@@ -66,6 +84,11 @@ export function App() {
 
   function updateActive(next: Runde) {
     saveRunde(next);
+  }
+
+  function updatePreise(next: RundenPreise) {
+    store.savePreise(next);
+    setPreise(next);
   }
 
   async function exportCsv() {
@@ -199,6 +222,7 @@ export function App() {
         <>
           <RundenListe
             runden={runden}
+            preise={preise}
             deleteCandidate={deleteCandidate}
             onOpen={(id) => {
               setActiveId(id);
@@ -212,6 +236,7 @@ export function App() {
               setView("day-print");
             }}
             onPayDay={setPaymentDay}
+            onPreiseChange={updatePreise}
           />
           {paymentDay && (
             <DayPaymentDialog
@@ -227,8 +252,42 @@ export function App() {
   );
 }
 
+interface AppSettings {
+  preise: RundenPreise;
+}
+
+async function loadSettings(): Promise<AppSettings | null> {
+  try {
+    const response = await fetch(`${import.meta.env.BASE_URL}assets/settings.json`, { cache: "no-cache" });
+    if (!response.ok) {
+      return null;
+    }
+
+    const parsed = await response.json() as unknown;
+    if (!isSettings(parsed)) {
+      return null;
+    }
+
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function isSettings(value: unknown): value is AppSettings {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as AppSettings).preise === "object" &&
+    (value as AppSettings).preise !== null &&
+    typeof (value as AppSettings).preise.mitgliedCent === "number" &&
+    typeof (value as AppSettings).preise.gastCent === "number"
+  );
+}
+
 interface RundenListeProps {
   runden: Runde[];
+  preise: RundenPreise;
   deleteCandidate: string | null;
   onOpen: (id: string) => void;
   onAskDelete: (id: string) => void;
@@ -236,9 +295,10 @@ interface RundenListeProps {
   onCancelDelete: () => void;
   onPrintDay: (day: string) => void;
   onPayDay: (day: string) => void;
+  onPreiseChange: (preise: RundenPreise) => void;
 }
 
-function RundenListe({ runden, deleteCandidate, onOpen, onAskDelete, onConfirmDelete, onCancelDelete, onPrintDay, onPayDay }: RundenListeProps) {
+function RundenListe({ runden, preise, deleteCandidate, onOpen, onAskDelete, onConfirmDelete, onCancelDelete, onPrintDay, onPayDay, onPreiseChange }: RundenListeProps) {
   const [selectedDay, setSelectedDay] = useState(todayKey());
   const days = Array.from(new Set(runden.map(dayKey).filter(Boolean))).sort((a, b) => b.localeCompare(a));
   const filteredRunden = sortRundenNewestFirst(selectedDay === "alle" ? runden : runden.filter((runde) => dayKey(runde) === selectedDay));
@@ -248,6 +308,7 @@ function RundenListe({ runden, deleteCandidate, onOpen, onAskDelete, onConfirmDe
   return (
     <section className="panel">
       <h2>Rundenliste</h2>
+      <PreiseEditor preise={preise} onChange={onPreiseChange} />
       {runden.length > 0 && (
         <div className="list-filters">
           <label>
@@ -289,6 +350,33 @@ function RundenListe({ runden, deleteCandidate, onOpen, onAskDelete, onConfirmDe
           ))}
         </div>
       )}
+    </section>
+  );
+}
+
+function PreiseEditor({ preise, onChange }: { preise: RundenPreise; onChange: (preise: RundenPreise) => void }) {
+  return (
+    <section className="price-editor" aria-label="Preise">
+      <label>
+        Mitglied
+        <input
+          type="number"
+          min="0"
+          step="0.5"
+          value={centToEuroInput(preise.mitgliedCent)}
+          onChange={(event) => onChange({ ...preise, mitgliedCent: euroInputToCent(event.target.value) })}
+        />
+      </label>
+      <label>
+        Gast
+        <input
+          type="number"
+          min="0"
+          step="0.5"
+          value={centToEuroInput(preise.gastCent)}
+          onChange={(event) => onChange({ ...preise, gastCent: euroInputToCent(event.target.value) })}
+        />
+      </label>
     </section>
   );
 }
@@ -376,6 +464,32 @@ function formatGastCount(count: number): string {
 
 function formatUnbezahltCount(count: number): string {
   return count === 1 ? "1 unbezahlt" : `${count} unbezahlt`;
+}
+
+function centToEuroInput(cent: number): string {
+  return (cent / 100).toFixed(2);
+}
+
+function euroInputToCent(value: string): number {
+  const amount = Number.parseFloat(value.replace(",", "."));
+  return Number.isFinite(amount) ? Math.max(0, Math.round(amount * 100)) : 0;
+}
+
+function formatMoney(cent: number): string {
+  return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(cent / 100);
+}
+
+function getRundenPreise(runde: Runde): RundenPreise {
+  return runde.preise ?? DEFAULT_PREISE;
+}
+
+function getSchuetzenPreisCent(runde: Runde, schuetze: Schuetze): number {
+  const rundenPreise = getRundenPreise(runde);
+  return schuetze.gaststatus ? rundenPreise.gastCent : rundenPreise.mitgliedCent;
+}
+
+function getEingenommenCent(runde: Runde): number {
+  return runde.rotte.reduce((sum, schuetze) => sum + (schuetze.zahlungsstatus ? getSchuetzenPreisCent(runde, schuetze) : 0), 0);
 }
 
 interface RundenEditorProps {
@@ -688,6 +802,7 @@ function DayPaymentDialog({ day, runden, onTogglePaid, onClose }: DayPaymentDial
                 />
                 <span className="payment-name">{schuetze.name}</span>
                 <span>{formatRoundCount(schuetze.roundCount)}</span>
+                <span>{formatMoney(schuetze.amountCent)}</span>
                 {schuetze.gaststatus && <span className="round-badge">Gast</span>}
               </label>
             ))}
@@ -706,6 +821,7 @@ interface DayPaymentShooter {
   roundCount: number;
   gaststatus: boolean;
   paid: boolean;
+  amountCent: number;
 }
 
 function getDayPaymentShooters(runden: Runde[]): DayPaymentShooter[] {
@@ -723,7 +839,8 @@ function getDayPaymentShooters(runden: Runde[]): DayPaymentShooter[] {
         name,
         roundCount: (current?.roundCount ?? 0) + 1,
         gaststatus: Boolean(current?.gaststatus || schuetze.gaststatus),
-        paid: current ? current.paid && schuetze.zahlungsstatus : schuetze.zahlungsstatus
+        paid: current ? current.paid && schuetze.zahlungsstatus : schuetze.zahlungsstatus,
+        amountCent: (current?.amountCent ?? 0) + getSchuetzenPreisCent(runde, schuetze)
       });
     }
   }
@@ -1034,9 +1151,11 @@ function PrintView({ runden, onBack }: { runden: Runde[]; onBack: () => void }) 
         <section key={runde.id} className="print-round">
           <p>{formatRundenzeit(runde.rundenzeit)} · Schießleiter: {runde.schiessleiter}</p>
           {mode === "einzelergebnisse" ? <PrintEinzelergebnisse runde={runde} /> : <PrintZusammenfassung runde={runde} />}
+          <p className="print-money">Rundengeld: {formatMoney(getEingenommenCent(runde))}</p>
           <PrintSignature />
         </section>
       ))}
+      <p className="print-money print-money-total">Rundengeld gesamt: {formatMoney(runden.reduce((sum, runde) => sum + getEingenommenCent(runde), 0))}</p>
     </main>
   );
 }

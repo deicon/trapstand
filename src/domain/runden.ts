@@ -1,10 +1,16 @@
-import type { Runde, RundenStatus, Schuetze, Taube, Taubenstatus } from "./model";
+import type { Runde, RundenPreise, RundenStatus, Schuetze, Taube, Taubenstatus } from "./model";
+
+export const DEFAULT_PREISE: RundenPreise = {
+  mitgliedCent: 500,
+  gastCent: 800
+};
 
 export interface CreateRundeInput {
   id: string;
   rundenzeit: string;
   schiessleiter: string;
   schuetzenNamen: string[];
+  preise?: RundenPreise;
 }
 
 export function createRunde(input: CreateRundeInput): Runde {
@@ -17,16 +23,18 @@ export function createRunde(input: CreateRundeInput): Runde {
     rundenzeit: input.rundenzeit,
     schiessleiter: input.schiessleiter,
     gesperrt: false,
+    preise: input.preise ? { ...input.preise } : { ...DEFAULT_PREISE },
     rotte: input.schuetzenNamen.map((name, index) => createSchuetze(name, index + 1))
   };
 }
 
-export function createEntwurf(id = crypto.randomUUID(), rundenzeit = toLocalDateTimeInputValue(new Date())): Runde {
+export function createEntwurf(id = crypto.randomUUID(), rundenzeit = toLocalDateTimeInputValue(new Date()), preise: RundenPreise = DEFAULT_PREISE): Runde {
   return {
     id,
     rundenzeit,
     schiessleiter: "",
     gesperrt: false,
+    preise: { ...preise },
     rotte: [createSchuetze("", 1)]
   };
 }

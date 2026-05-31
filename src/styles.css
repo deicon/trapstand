@@ -147,10 +147,24 @@ input {
   margin-bottom: 1rem;
 }
 
+.price-editor {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
 .list-filters label {
   display: grid;
   gap: 0.3rem;
   min-width: 160px;
+}
+
+.price-editor label {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 140px;
 }
 
 .list-filters select {
@@ -471,7 +485,7 @@ input {
   border-radius: 6px;
   display: grid;
   gap: 0.75rem;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   padding: 0.65rem 0.75rem;
 }
 
@@ -504,6 +518,15 @@ input {
 
 .print-signature span {
   font-weight: 700;
+}
+
+.print-money {
+  font-weight: 700;
+}
+
+.print-money-total {
+  border-top: 2px solid #1a1f1d;
+  padding-top: 0.5rem;
 }
 
 .score-table th,

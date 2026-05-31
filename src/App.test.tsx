@@ -26,6 +26,7 @@ describe("Trapstand app", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 });
     Object.defineProperty(navigator, "share", { configurable: true, value: undefined });
     Object.defineProperty(navigator, "canShare", { configurable: true, value: undefined });
+    Object.defineProperty(globalThis, "fetch", { configurable: true, value: vi.fn(() => Promise.reject(new Error("Keine Settings"))) });
     localStorage.clear();
     vi.mocked(refreshPwa).mockClear();
   });
@@ -80,6 +81,28 @@ describe("Trapstand app", () => {
     expect(screen.getByLabelText(/name schuetze 1/i)).toHaveValue("Anna");
     expect(screen.getByRole("checkbox", { name: /anna ist gast/i })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: /anna hat bezahlt/i })).toBeChecked();
+  });
+
+  it("loads default prices from static settings and copies current prices into new Runden", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ preise: { mitgliedCent: 600, gastCent: 900 } })
+    } as Response);
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByLabelText(/^mitglied$/i)).toHaveValue(6));
+    expect(screen.getByLabelText(/^gast$/i)).toHaveValue(9);
+
+    await user.clear(screen.getByLabelText(/^mitglied$/i));
+    await user.type(screen.getByLabelText(/^mitglied$/i), "7");
+    await user.clear(screen.getByLabelText(/^gast$/i));
+    await user.type(screen.getByLabelText(/^gast$/i), "10");
+    await user.click(screen.getByRole("button", { name: /neue runde/i }));
+
+    const datenbestand = JSON.parse(localStorage.getItem("trapstand:datenbestand") ?? "{}");
+    expect(datenbestand.preise).toEqual({ mitgliedCent: 700, gastCent: 1000 });
+    expect(datenbestand.runden[0].preise).toEqual({ mitgliedCent: 700, gastCent: 1000 });
   });
 
   it("shows only the scoring table while a Runde is running", async () => {
@@ -523,22 +546,29 @@ describe("Trapstand app", () => {
 
   it("prints all Runden of the selected day", async () => {
     const user = userEvent.setup();
+    const erste = createRunde({
+      id: "erste",
+      rundenzeit: "2026-05-31T18:00",
+      schiessleiter: "Leiter Eins",
+      schuetzenNamen: ["Anna"],
+      preise: { mitgliedCent: 500, gastCent: 800 }
+    });
+    erste.rotte[0].zahlungsstatus = true;
+    const zweite = createRunde({
+      id: "zweite",
+      rundenzeit: "2026-05-31T20:00",
+      schiessleiter: "Leiter Zwei",
+      schuetzenNamen: ["Bernd"],
+      preise: { mitgliedCent: 500, gastCent: 800 }
+    });
+    zweite.rotte[0].gaststatus = true;
+    zweite.rotte[0].zahlungsstatus = true;
     localStorage.setItem(
       "trapstand:datenbestand",
       JSON.stringify({
         runden: [
-          createRunde({
-            id: "erste",
-            rundenzeit: "2026-05-31T18:00",
-            schiessleiter: "Leiter Eins",
-            schuetzenNamen: ["Anna"]
-          }),
-          createRunde({
-            id: "zweite",
-            rundenzeit: "2026-05-31T20:00",
-            schiessleiter: "Leiter Zwei",
-            schuetzenNamen: ["Bernd"]
-          }),
+          erste,
+          zweite,
           createRunde({
             id: "alt",
             rundenzeit: "2026-05-30T18:00",
@@ -559,6 +589,9 @@ describe("Trapstand app", () => {
     expect(screen.queryByText(/leiter alt/i)).not.toBeInTheDocument();
     expect(screen.getByText(/anna/i)).toBeInTheDocument();
     expect(screen.getByText(/bernd/i)).toBeInTheDocument();
+    expect(screen.getByText(/rundengeld: 5,00/i)).toBeInTheDocument();
+    expect(screen.getByText(/rundengeld: 8,00/i)).toBeInTheDocument();
+    expect(screen.getByText(/rundengeld gesamt: 13,00/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /zusammenfassung/i }));
     expect(screen.getAllByRole("columnheader", { name: /^gast$/i })).toHaveLength(2);
@@ -593,6 +626,7 @@ describe("Trapstand app", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent(/bernd/i);
     expect(screen.getByRole("dialog")).toHaveTextContent(/2 runden/i);
     expect(screen.getByRole("dialog")).toHaveTextContent(/gast/i);
+    expect(screen.getByRole("dialog")).toHaveTextContent(/13,00\s*€/i);
 
     await user.click(screen.getByRole("checkbox", { name: /bernd bezahlt/i }));
     await user.click(screen.getByRole("button", { name: /schliessen/i }));
