@@ -18,6 +18,7 @@ export interface Runde {
   rundenzeit: string;
   schiessleiter: string;
   gesperrt?: boolean;
+  sicherheitBestaetigt?: boolean;
   rotte: Schuetze[];
 }
 

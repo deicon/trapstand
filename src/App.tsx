@@ -31,6 +31,7 @@ export function App() {
   const [message, setMessage] = useState("");
   const [deleteCandidate, setDeleteCandidate] = useState<string | null>(null);
   const [printDay, setPrintDay] = useState<string | null>(null);
+  const [paymentDay, setPaymentDay] = useState<string | null>(null);
 
   const activeRunde = useMemo(() => runden.find((runde) => runde.id === activeId), [activeId, runden]);
 
@@ -99,6 +100,24 @@ export function App() {
     refreshRunden();
   }
 
+  function markShooterPaidForDay(day: string, name: string, paid: boolean) {
+    const nextRunden = runden.map((runde) => {
+      if (dayKey(runde) !== day) {
+        return runde;
+      }
+
+      return {
+        ...runde,
+        rotte: runde.rotte.map((schuetze) => (schuetze.name.trim() === name ? { ...schuetze, zahlungsstatus: paid } : schuetze))
+      };
+    });
+
+    for (const runde of nextRunden) {
+      store.save(runde);
+    }
+    refreshRunden();
+  }
+
   async function handleAppRefresh() {
     setMessage("App wird aktualisiert.");
     try {
@@ -131,7 +150,7 @@ export function App() {
       <header className="topbar">
         <div>
           <h1>Trapstand</h1>
-          <p>Rundenerfassung am Schuetzenstand</p>
+          <p>Rundenerfassung am Schützenstand</p>
         </div>
         <div className="topbar-actions">
           <button onClick={createNewRunde}>Neue Runde</button>
@@ -150,6 +169,7 @@ export function App() {
       {(view === "editor" || view === "start-confirm") && activeRunde ? (
         <>
           <RundenEditor
+            runden={runden}
             runde={activeRunde}
             onBack={() => {
               setView("list");
@@ -171,21 +191,32 @@ export function App() {
           )}
         </>
       ) : (
-        <RundenListe
-          runden={runden}
-          deleteCandidate={deleteCandidate}
-          onOpen={(id) => {
-            setActiveId(id);
-            setView("editor");
-          }}
-          onAskDelete={setDeleteCandidate}
-          onConfirmDelete={confirmDelete}
-          onCancelDelete={() => setDeleteCandidate(null)}
-          onPrintDay={(day) => {
-            setPrintDay(day);
-            setView("day-print");
-          }}
-        />
+        <>
+          <RundenListe
+            runden={runden}
+            deleteCandidate={deleteCandidate}
+            onOpen={(id) => {
+              setActiveId(id);
+              setView("editor");
+            }}
+            onAskDelete={setDeleteCandidate}
+            onConfirmDelete={confirmDelete}
+            onCancelDelete={() => setDeleteCandidate(null)}
+            onPrintDay={(day) => {
+              setPrintDay(day);
+              setView("day-print");
+            }}
+            onPayDay={setPaymentDay}
+          />
+          {paymentDay && (
+            <DayPaymentDialog
+              day={paymentDay}
+              runden={runden.filter((runde) => dayKey(runde) === paymentDay)}
+              onTogglePaid={(name, paid) => markShooterPaidForDay(paymentDay, name, paid)}
+              onClose={() => setPaymentDay(null)}
+            />
+          )}
+        </>
       )}
     </main>
   );
@@ -199,9 +230,10 @@ interface RundenListeProps {
   onConfirmDelete: (id: string) => void;
   onCancelDelete: () => void;
   onPrintDay: (day: string) => void;
+  onPayDay: (day: string) => void;
 }
 
-function RundenListe({ runden, deleteCandidate, onOpen, onAskDelete, onConfirmDelete, onCancelDelete, onPrintDay }: RundenListeProps) {
+function RundenListe({ runden, deleteCandidate, onOpen, onAskDelete, onConfirmDelete, onCancelDelete, onPrintDay, onPayDay }: RundenListeProps) {
   const [selectedDay, setSelectedDay] = useState(todayKey());
   const days = Array.from(new Set(runden.map(dayKey).filter(Boolean))).sort((a, b) => b.localeCompare(a));
   const filteredRunden = sortRundenNewestFirst(selectedDay === "alle" ? runden : runden.filter((runde) => dayKey(runde) === selectedDay));
@@ -223,6 +255,7 @@ function RundenListe({ runden, deleteCandidate, onOpen, onAskDelete, onConfirmDe
             </select>
           </label>
           {canPrintDay && <button onClick={() => onPrintDay(selectedDay)}>Tag ausdrucken</button>}
+          {canPrintDay && <button onClick={() => onPayDay(selectedDay)}>Bezahlen</button>}
         </div>
       )}
       {runden.length === 0 ? (
@@ -341,6 +374,7 @@ function formatUnbezahltCount(count: number): string {
 }
 
 interface RundenEditorProps {
+  runden: Runde[];
   runde: Runde;
   onBack: () => void;
   onPrint: () => void;
@@ -349,10 +383,12 @@ interface RundenEditorProps {
   onMessage: (message: string) => void;
 }
 
-function RundenEditor({ runde, onBack, onPrint, onStart, onChange, onMessage }: RundenEditorProps) {
+function RundenEditor({ runden, runde, onBack, onPrint, onStart, onChange, onMessage }: RundenEditorProps) {
   const rotteLocked = hasRundeneintraege(runde);
   const ergebnisseLocked = runde.gesperrt === true;
   const [validationMessage, setValidationMessage] = useState("");
+  const knownShooters = getKnownShootersForDay(runden, runde);
+  const knownSchiessleiter = getKnownSchiessleiter(runden, runde);
 
   function toggleGesperrt() {
     if (!ergebnisseLocked && runde.schiessleiter.trim().length === 0) {
@@ -375,6 +411,11 @@ function RundenEditor({ runde, onBack, onPrint, onStart, onChange, onMessage }: 
 
     setValidationMessage("");
     onStart();
+  }
+
+  function updateShooterName(schuetzeId: string, name: string) {
+    const knownShooter = knownShooters.find((schuetze) => schuetze.name === name);
+    onChange(updateSchuetze(runde, schuetzeId, knownShooter ? { name, gaststatus: knownShooter.gaststatus } : { name }));
   }
 
   return (
@@ -405,6 +446,7 @@ function RundenEditor({ runde, onBack, onPrint, onStart, onChange, onMessage }: 
         <label>
           Schießleiter
           <input
+            list="known-schiessleiter"
             value={runde.schiessleiter}
             aria-invalid={validationMessage ? "true" : undefined}
             className={validationMessage ? "input-error" : undefined}
@@ -414,6 +456,11 @@ function RundenEditor({ runde, onBack, onPrint, onStart, onChange, onMessage }: 
               onChange({ ...runde, schiessleiter: event.target.value });
             }}
           />
+          <datalist id="known-schiessleiter">
+            {knownSchiessleiter.map((name) => (
+              <option key={name} value={name} />
+            ))}
+          </datalist>
         </label>
       </div>
 
@@ -431,15 +478,31 @@ function RundenEditor({ runde, onBack, onPrint, onStart, onChange, onMessage }: 
             </tr>
           </thead>
           <tbody>
-            {runde.rotte.map((schuetze, schuetzeIndex) => (
+            {runde.rotte.map((schuetze, schuetzeIndex) => {
+              const datalistId = `known-shooters-${schuetze.id}`;
+              const currentNames = new Set(
+                runde.rotte
+                  .filter((_, index) => index !== schuetzeIndex)
+                  .map((otherSchuetze) => otherSchuetze.name.trim())
+                  .filter(Boolean)
+              );
+              const suggestions = knownShooters.filter((knownSchuetze) => !currentNames.has(knownSchuetze.name) && knownSchuetze.name !== schuetze.name.trim());
+
+              return (
               <tr key={schuetze.id} aria-label={schuetze.name || `Schuetze ${schuetzeIndex + 1}`}>
                 <th className="sticky-name">
                   <input
                     aria-label={`Name Schuetze ${schuetzeIndex + 1}`}
+                    list={datalistId}
                     value={schuetze.name}
                     disabled={ergebnisseLocked}
-                    onChange={(event) => onChange(updateSchuetze(runde, schuetze.id, { name: event.target.value }))}
+                    onChange={(event) => updateShooterName(schuetze.id, event.target.value)}
                   />
+                  <datalist id={datalistId}>
+                    {suggestions.map((knownSchuetze) => (
+                      <option key={knownSchuetze.name} value={knownSchuetze.name} />
+                    ))}
+                  </datalist>
                 </th>
                 <td>
                   <label className="compact-check">
@@ -477,7 +540,8 @@ function RundenEditor({ runde, onBack, onPrint, onStart, onChange, onMessage }: 
                   )}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -485,6 +549,130 @@ function RundenEditor({ runde, onBack, onPrint, onStart, onChange, onMessage }: 
       <button disabled={runde.rotte.length >= 6 || rotteLocked || ergebnisseLocked} onClick={() => onChange(addSchuetze(runde))}>Schuetze hinzufuegen</button>
     </section>
   );
+}
+
+interface KnownShooter {
+  name: string;
+  gaststatus: boolean;
+}
+
+function getKnownShootersForDay(runden: Runde[], activeRunde: Runde): KnownShooter[] {
+  const day = dayKey(activeRunde);
+  const shooters = new Map<string, KnownShooter>();
+
+  for (const runde of runden) {
+    if (runde.id === activeRunde.id || dayKey(runde) !== day) {
+      continue;
+    }
+
+    for (const schuetze of runde.rotte) {
+      const name = schuetze.name.trim();
+      if (!name) {
+        continue;
+      }
+
+      const knownShooter = shooters.get(name);
+      shooters.set(name, {
+        name,
+        gaststatus: Boolean(knownShooter?.gaststatus || schuetze.gaststatus)
+      });
+    }
+  }
+
+  return Array.from(shooters.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function getKnownSchiessleiter(runden: Runde[], activeRunde: Runde): string[] {
+  const names = new Set<string>();
+
+  for (const runde of runden) {
+    if (runde.id === activeRunde.id) {
+      continue;
+    }
+
+    const name = runde.schiessleiter.trim();
+    if (name) {
+      names.add(name);
+    }
+  }
+
+  return Array.from(names).sort((a, b) => a.localeCompare(b));
+}
+
+interface DayPaymentDialogProps {
+  day: string;
+  runden: Runde[];
+  onTogglePaid: (name: string, paid: boolean) => void;
+  onClose: () => void;
+}
+
+function DayPaymentDialog({ day, runden, onTogglePaid, onClose }: DayPaymentDialogProps) {
+  const shooters = getDayPaymentShooters(runden);
+
+  return (
+    <div className="dialog-backdrop">
+      <div className="dialog-panel payment-dialog" role="dialog" aria-modal="true" aria-label={`Bezahlen ${formatDayLabel(day)}`}>
+        <h2>Bezahlen</h2>
+        <p>{formatDayLabel(day)}</p>
+        {shooters.length === 0 ? (
+          <div className="empty-state">Keine Schuetzen fuer diesen Tag.</div>
+        ) : (
+          <div className="payment-list">
+            {shooters.map((schuetze) => (
+              <label key={schuetze.name} className="payment-row">
+                <input
+                  type="checkbox"
+                  aria-label={`${schuetze.name} bezahlt`}
+                  checked={schuetze.paid}
+                  onChange={(event) => onTogglePaid(schuetze.name, event.target.checked)}
+                />
+                <span className="payment-name">{schuetze.name}</span>
+                <span>{formatRoundCount(schuetze.roundCount)}</span>
+                {schuetze.gaststatus && <span className="round-badge">Gast</span>}
+              </label>
+            ))}
+          </div>
+        )}
+        <div className="dialog-actions">
+          <button onClick={onClose}>Schliessen</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface DayPaymentShooter {
+  name: string;
+  roundCount: number;
+  gaststatus: boolean;
+  paid: boolean;
+}
+
+function getDayPaymentShooters(runden: Runde[]): DayPaymentShooter[] {
+  const shooters = new Map<string, DayPaymentShooter>();
+
+  for (const runde of runden) {
+    for (const schuetze of runde.rotte) {
+      const name = schuetze.name.trim();
+      if (!name) {
+        continue;
+      }
+
+      const current = shooters.get(name);
+      shooters.set(name, {
+        name,
+        roundCount: (current?.roundCount ?? 0) + 1,
+        gaststatus: Boolean(current?.gaststatus || schuetze.gaststatus),
+        paid: current ? current.paid && schuetze.zahlungsstatus : schuetze.zahlungsstatus
+      });
+    }
+  }
+
+  return Array.from(shooters.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function formatRoundCount(count: number): string {
+  return count === 1 ? "1 Runde" : `${count} Runden`;
 }
 
 interface RundenErfassungProps {
@@ -528,7 +716,7 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
     onChange(setTaubenstatus(runde, activeCursor.schuetzeId, activeCursor.taube, status));
     const followingCursor = getFollowingCaptureCursor(runde, activeCursor);
     setManualCursor(followingCursor);
-    if (!followingCursor) {
+    if (!followingCursor && !runde.sicherheitBestaetigt) {
       setSafetyPending(true);
     }
   }
@@ -542,9 +730,14 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
     const nextCursor = getNextCaptureCursor(nextRunde);
     onChange(nextRunde);
     setManualCursor(nextCursor);
-    if (!nextCursor) {
+    if (!nextCursor && !runde.sicherheitBestaetigt) {
       setSafetyPending(true);
     }
+  }
+
+  function confirmSafety() {
+    onChange({ ...runde, sicherheitBestaetigt: true });
+    setSafetyPending(false);
   }
 
   return (
@@ -618,7 +811,7 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
         <ConfirmationDialog
           message="Sicherheit hergestellt?"
           confirmLabel="OK"
-          onConfirm={() => setSafetyPending(false)}
+          onConfirm={confirmSafety}
         />
       )}
     </main>

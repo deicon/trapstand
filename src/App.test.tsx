@@ -134,6 +134,73 @@ describe("Trapstand app", () => {
     expect(screen.getByRole("table", { name: /rundenerfassung/i })).toBeInTheDocument();
   });
 
+  it("suggests known shooters from the same day and applies their guest status", async () => {
+    const user = userEvent.setup();
+    const previous = createRunde({
+      id: "previous",
+      rundenzeit: "2026-05-31T11:00",
+      schiessleiter: "Leiter",
+      schuetzenNamen: ["Anna", "Bernd"]
+    });
+    previous.rotte[1].gaststatus = true;
+    const otherDay = createRunde({
+      id: "other-day",
+      rundenzeit: "2026-05-30T11:00",
+      schiessleiter: "Leiter",
+      schuetzenNamen: ["Claudia"]
+    });
+    localStorage.setItem("trapstand:datenbestand", JSON.stringify({ runden: [previous, otherDay] }));
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: /neue runde/i }));
+    await user.clear(screen.getByLabelText(/name schuetze 1/i));
+    await user.type(screen.getByLabelText(/name schuetze 1/i), "Anna");
+    await user.click(screen.getByRole("button", { name: /schuetze hinzufuegen/i }));
+
+    const nameInput = screen.getByLabelText(/name schuetze 2/i);
+    const listId = nameInput.getAttribute("list");
+    const suggestions = Array.from(document.querySelectorAll(`#${listId} option`)).map((option) => option.getAttribute("value"));
+    expect(suggestions).toContain("Bernd");
+    expect(suggestions).not.toContain("Anna");
+    expect(suggestions).not.toContain("Claudia");
+
+    await user.type(nameInput, "Bernd");
+    expect(screen.getByRole("checkbox", { name: /bernd ist gast/i })).toBeChecked();
+  });
+
+  it("suggests known Schiessleiter globally", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem(
+      "trapstand:datenbestand",
+      JSON.stringify({
+        runden: [
+          createRunde({
+            id: "heute",
+            rundenzeit: "2026-05-31T11:00",
+            schiessleiter: "Dieter",
+            schuetzenNamen: ["Anna"]
+          }),
+          createRunde({
+            id: "anderer-tag",
+            rundenzeit: "2026-05-30T11:00",
+            schiessleiter: "Stefan",
+            schuetzenNamen: ["Bernd"]
+          })
+        ]
+      })
+    );
+    render(<App />);
+
+    expect(screen.getByText(/schützenstand/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /neue runde/i }));
+
+    const schiessleiterInput = screen.getByLabelText(/schie(?:ß|ss)leiter/i);
+    const listId = schiessleiterInput.getAttribute("list");
+    const suggestions = Array.from(document.querySelectorAll(`#${listId} option`)).map((option) => option.getAttribute("value"));
+    expect(suggestions).toEqual(["Dieter", "Stefan"]);
+  });
+
   it("records the active shooter with large Treffer and Gefehlt buttons", async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -182,6 +249,16 @@ describe("Trapstand app", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent(/sicherheit hergestellt/i);
     expect(screen.getByRole("button", { name: /^treffer$/i })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: /^ok$/i }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await user.click(within(screen.getByRole("row", { name: /anna/i })).getByRole("button", { name: /taube 25 treffer entfernen/i }));
+    await user.click(screen.getByRole("button", { name: /^treffer$/i }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /runde beenden/i }));
+    await startRunde(user);
+    await user.click(within(screen.getByRole("row", { name: /anna/i })).getByRole("button", { name: /taube 25 treffer entfernen/i }));
+    await user.click(screen.getByRole("button", { name: /^treffer$/i }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
@@ -437,6 +514,49 @@ describe("Trapstand app", () => {
 
     await user.click(screen.getByRole("button", { name: /zusammenfassung/i }));
     expect(screen.getAllByRole("columnheader", { name: /^gast$/i })).toHaveLength(2);
+  });
+
+  it("marks all day rounds for a shooter as paid", async () => {
+    const user = userEvent.setup();
+    const first = createRunde({
+      id: "erste",
+      rundenzeit: "2026-05-31T18:00",
+      schiessleiter: "Leiter Eins",
+      schuetzenNamen: ["Anna", "Bernd"]
+    });
+    first.rotte[1].gaststatus = true;
+    const second = createRunde({
+      id: "zweite",
+      rundenzeit: "2026-05-31T20:00",
+      schiessleiter: "Leiter Zwei",
+      schuetzenNamen: ["Bernd"]
+    });
+    const otherDay = createRunde({
+      id: "alt",
+      rundenzeit: "2026-05-30T18:00",
+      schiessleiter: "Leiter Alt",
+      schuetzenNamen: ["Bernd"]
+    });
+    localStorage.setItem("trapstand:datenbestand", JSON.stringify({ runden: [first, second, otherDay] }));
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: /^bezahlen$/i }));
+
+    expect(screen.getByRole("dialog")).toHaveTextContent(/bernd/i);
+    expect(screen.getByRole("dialog")).toHaveTextContent(/2 runden/i);
+    expect(screen.getByRole("dialog")).toHaveTextContent(/gast/i);
+
+    await user.click(screen.getByRole("checkbox", { name: /bernd bezahlt/i }));
+    await user.click(screen.getByRole("button", { name: /schliessen/i }));
+
+    await user.click(screen.getByRole("button", { name: /bernd.*2026-05-31 20:00/i }));
+    expect(screen.getByRole("checkbox", { name: /bernd hat bezahlt/i })).not.toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: /bernd hat bezahlt/i })).toBeChecked();
+
+    await user.click(screen.getByRole("button", { name: /zurueck zur liste/i }));
+    await user.selectOptions(screen.getByLabelText(/tag/i), "2026-05-30");
+    await user.click(screen.getByRole("button", { name: /bernd/i }));
+    expect(screen.getByRole("checkbox", { name: /bernd hat bezahlt/i })).not.toBeChecked();
   });
 
   it("shares JSON Backup as a text file when application/json is not shareable", async () => {
