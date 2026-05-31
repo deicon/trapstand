@@ -272,6 +272,33 @@ input {
   gap: 0.5rem;
 }
 
+.quick-score-actions {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 0.75rem;
+  grid-template-columns: 1fr 1fr;
+}
+
+.quick-score {
+  border: 0;
+  color: #ffffff;
+  font-size: 1.35rem;
+  font-weight: 800;
+  min-height: 68px;
+}
+
+.quick-score-hit {
+  background: #166534;
+}
+
+.quick-score-miss {
+  background: #b42318;
+}
+
+.quick-score:disabled {
+  opacity: 0.45;
+}
+
 .capture-table-wrap {
   flex: 1 1 auto;
   margin-bottom: 0;
@@ -319,6 +346,12 @@ input {
   width: 100%;
 }
 
+.taube-active {
+  animation: active-taube-pulse 1.2s ease-in-out infinite;
+  border-color: #111827;
+  box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.28);
+}
+
 .taube-target {
   border: 0;
   border-radius: 0;
@@ -326,6 +359,17 @@ input {
   min-width: 38px;
   padding: 0;
   width: 100%;
+}
+
+@keyframes active-taube-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.24);
+  }
+
+  50% {
+    box-shadow: 0 0 0 5px rgba(17, 24, 39, 0.42);
+  }
 }
 
 .score-table th,

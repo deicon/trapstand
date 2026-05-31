@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Runde, Taubenstatus } from "./domain/model";
+import type { Runde, Schuetze, Taubenstatus } from "./domain/model";
 import {
   addSchuetze,
   createEntwurf,
@@ -20,6 +20,7 @@ import "./styles.css";
 
 type View = "list" | "editor" | "capture" | "print";
 type PrintMode = "einzelergebnisse" | "zusammenfassung";
+type CaptureCursor = { schuetzeId: string; taube: number };
 
 const store = new LocalDatenbestand();
 
@@ -463,6 +464,7 @@ interface RundenErfassungProps {
 function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
   const isPhoneWidth = useWindowWidth() <= 640;
   const [taubenPage, setTaubenPage] = useState(0);
+  const [manualCursor, setManualCursor] = useState<CaptureCursor | null>(null);
   const taubenPageSize = isPhoneWidth ? 5 : 25;
   const taubenPageCount = Math.ceil(25 / taubenPageSize);
   const activeTaubenPage = Math.min(taubenPage, taubenPageCount - 1);
@@ -470,15 +472,44 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
   const lastTaubeIndex = Math.min(firstTaubeIndex + taubenPageSize, 25);
   const visibleTauben = Array.from({ length: lastTaubeIndex - firstTaubeIndex }, (_, index) => firstTaubeIndex + index + 1);
   const ergebnisseLocked = runde.gesperrt === true;
+  const activeCursor = isValidCursor(runde, manualCursor) ? manualCursor : getNextCaptureCursor(runde);
 
   useEffect(() => {
     setTaubenPage(0);
   }, [isPhoneWidth]);
 
+  useEffect(() => {
+    if (!activeCursor) {
+      return;
+    }
+
+    setTaubenPage(Math.floor((activeCursor.taube - 1) / taubenPageSize));
+  }, [activeCursor?.taube, taubenPageSize]);
+
+  function recordActive(status: Exclude<Taubenstatus, "offen">) {
+    if (!activeCursor || ergebnisseLocked) {
+      return;
+    }
+
+    onChange(setTaubenstatus(runde, activeCursor.schuetzeId, activeCursor.taube, status));
+    setManualCursor(getFollowingCaptureCursor(runde, activeCursor));
+  }
+
+  function updateTaube(schuetzeId: string, taube: number, status: Taubenstatus) {
+    const nextRunde = setTaubenstatus(runde, schuetzeId, taube, status);
+    onChange(nextRunde);
+    setManualCursor(getNextCaptureCursor(nextRunde));
+  }
+
   return (
     <main className="capture-shell">
       <div className="capture-toolbar">
         <button onClick={onEnd}>Runde beenden</button>
+      </div>
+
+      <div className="quick-score-actions" aria-label="Schnellerfassung">
+        <button className="quick-score quick-score-hit" disabled={ergebnisseLocked || !activeCursor} onClick={() => recordActive("getroffen")}>Treffer</button>
+        <button className="quick-score quick-score-miss" disabled={ergebnisseLocked || !activeCursor} onClick={() => recordActive("verfehlt")}>Gefehlt</button>
       </div>
 
       {isPhoneWidth && (
@@ -523,7 +554,8 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
                       status={taube.status}
                       zwischenstand={zwischenstandBis(schuetze, firstTaubeIndex + index)}
                       disabled={ergebnisseLocked}
-                      onChange={(status) => onChange(setTaubenstatus(runde, schuetze.id, taube.nummer, status))}
+                      isActive={activeCursor?.schuetzeId === schuetze.id && activeCursor.taube === taube.nummer}
+                      onChange={(status) => updateTaube(schuetze.id, taube.nummer, status)}
                     />
                   </td>
                 ))}
@@ -557,10 +589,11 @@ interface TaubenButtonProps {
   status: Taubenstatus;
   zwischenstand: number;
   disabled: boolean;
+  isActive: boolean;
   onChange: (status: Taubenstatus) => void;
 }
 
-function TaubenButton({ nummer, status, zwischenstand, disabled, onChange }: TaubenButtonProps) {
+function TaubenButton({ nummer, status, zwischenstand, disabled, isActive, onChange }: TaubenButtonProps) {
   const trefferLabel =
     status === "getroffen"
       ? `Taube ${nummer} Treffer entfernen, Zwischenstand ${zwischenstand}`
@@ -571,7 +604,7 @@ function TaubenButton({ nummer, status, zwischenstand, disabled, onChange }: Tau
       : `Taube ${nummer} als Fehler markieren`;
 
   return (
-    <div className={`taube taube-${status}`} role="group" aria-label={`Taube ${nummer}`}>
+    <div className={`taube taube-${status}${isActive ? " taube-active" : ""}`} role="group" aria-label={`Taube ${nummer}`} aria-current={isActive ? "true" : undefined}>
       <button
         className="taube-target taube-target-treffer"
         aria-label={trefferLabel}
@@ -596,6 +629,58 @@ function TaubenButton({ nummer, status, zwischenstand, disabled, onChange }: Tau
 
 function zwischenstandBis(schuetze: { tauben: { status: Taubenstatus }[] }, index: number): number {
   return schuetze.tauben.slice(0, index + 1).filter((taube) => taube.status === "getroffen").length;
+}
+
+function isValidCursor(runde: Runde, cursor: CaptureCursor | null): cursor is CaptureCursor {
+  if (!cursor) {
+    return false;
+  }
+
+  return runde.rotte.some((schuetze) => schuetze.id === cursor.schuetzeId) && cursor.taube >= 1 && cursor.taube <= 25;
+}
+
+function getNextCaptureCursor(runde: Runde): CaptureCursor | null {
+  let lastFilledIndex = -1;
+  const rotteSize = runde.rotte.length;
+
+  for (let taube = 1; taube <= 25; taube += 1) {
+    for (let schuetzeIndex = 0; schuetzeIndex < rotteSize; schuetzeIndex += 1) {
+      const schuetze = runde.rotte[schuetzeIndex];
+      if (schuetze.tauben[taube - 1]?.status !== "offen") {
+        lastFilledIndex = sequenceIndex(taube, schuetzeIndex, rotteSize);
+      }
+    }
+  }
+
+  if (lastFilledIndex < 0) {
+    return runde.rotte[0] ? { schuetzeId: runde.rotte[0].id, taube: 1 } : null;
+  }
+
+  return getCursorAtSequenceIndex(runde, lastFilledIndex + 1);
+}
+
+function getFollowingCaptureCursor(runde: Runde, cursor: CaptureCursor): CaptureCursor | null {
+  const schuetzeIndex = runde.rotte.findIndex((schuetze) => schuetze.id === cursor.schuetzeId);
+  if (schuetzeIndex < 0) {
+    return getNextCaptureCursor(runde);
+  }
+
+  return getCursorAtSequenceIndex(runde, sequenceIndex(cursor.taube, schuetzeIndex, runde.rotte.length) + 1);
+}
+
+function getCursorAtSequenceIndex(runde: Runde, index: number): CaptureCursor | null {
+  const rotteSize = runde.rotte.length;
+  if (rotteSize === 0 || index >= rotteSize * 25) {
+    return null;
+  }
+
+  const taube = Math.floor(index / rotteSize) + 1;
+  const schuetze = runde.rotte[index % rotteSize] as Schuetze | undefined;
+  return schuetze ? { schuetzeId: schuetze.id, taube } : null;
+}
+
+function sequenceIndex(taube: number, schuetzeIndex: number, rotteSize: number): number {
+  return (taube - 1) * rotteSize + schuetzeIndex;
 }
 
 function PrintView({ runde, onBack }: { runde: Runde; onBack: () => void }) {

@@ -87,6 +87,31 @@ describe("Trapstand app", () => {
     expect(screen.getByRole("row", { name: /bernd/i })).toHaveStyle({ height: "50%" });
   });
 
+  it("records the active shooter with large Treffer and Gefehlt buttons", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: /neue runde/i }));
+    await user.clear(screen.getByLabelText(/name schuetze 1/i));
+    await user.type(screen.getByLabelText(/name schuetze 1/i), "Anna");
+    await user.click(screen.getByRole("button", { name: /schuetze hinzufuegen/i }));
+    await user.type(screen.getByLabelText(/name schuetze 2/i), "Bernd");
+
+    await user.click(screen.getByRole("button", { name: /runde starten/i }));
+
+    expect(within(screen.getByRole("row", { name: /anna/i })).getByRole("group", { name: /^taube 1$/i })).toHaveAttribute("aria-current", "true");
+
+    await user.click(screen.getByRole("button", { name: /^treffer$/i }));
+
+    expect(within(screen.getByRole("row", { name: /anna/i })).getByRole("button", { name: /taube 1 treffer entfernen/i })).toHaveTextContent("1");
+    expect(within(screen.getByRole("row", { name: /bernd/i })).getByRole("group", { name: /^taube 1$/i })).toHaveAttribute("aria-current", "true");
+
+    await user.click(screen.getByRole("button", { name: /^gefehlt$/i }));
+
+    expect(within(screen.getByRole("row", { name: /bernd/i })).getByRole("button", { name: /taube 1 fehler entfernen/i })).toHaveTextContent("0");
+    expect(within(screen.getByRole("row", { name: /anna/i })).getByRole("group", { name: /^taube 2$/i })).toHaveAttribute("aria-current", "true");
+  });
+
   it("offers PWA refresh only from the list view", async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -189,6 +214,8 @@ describe("Trapstand app", () => {
     expect(screen.getByRole("checkbox", { name: /anna hat bezahlt/i })).toBeDisabled();
     expect(screen.getByRole("button", { name: /schuetze hinzufuegen/i })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: /runde starten/i }));
+    expect(screen.getByRole("button", { name: /^treffer$/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^gefehlt$/i })).toBeDisabled();
     expect(within(screen.getByRole("row", { name: /anna/i })).getByRole("button", { name: /taube 1 treffer entfernen/i })).toBeDisabled();
     expect(within(screen.getByRole("row", { name: /anna/i })).getByRole("button", { name: /taube 1 als fehler markieren/i })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: /runde beenden/i }));
