@@ -1,7 +1,7 @@
 {
-  "name": "Trapstand",
+  "name": "Trapstand, Bad Camberg",
   "short_name": "Trapstand",
-  "description": "Offline Rundenerfassung am Trapstand",
+  "description": "Offline Rundenerfassung am Trapstand Bad Camberg",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",

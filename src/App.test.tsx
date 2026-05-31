@@ -34,6 +34,9 @@ describe("Trapstand app", () => {
     const user = userEvent.setup();
     render(<App />);
 
+    expect(screen.getByRole("heading", { name: /trapstand, bad camberg/i })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /schützenverein bad camberg/i })).toHaveAttribute("src", "/trapstand/bad-camberg-logo.jpg");
+
     await user.click(screen.getByRole("button", { name: /neue runde/i }));
     await user.clear(screen.getByLabelText(/schie(?:ß|ss)leiter/i));
     await user.type(screen.getByLabelText(/schie(?:ß|ss)leiter/i), "Dieter");

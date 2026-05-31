@@ -62,11 +62,32 @@ input {
   padding: 1rem;
 }
 
+.brand {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.brand-logo {
+  background: #ffffff;
+  border-radius: 6px;
+  flex: 0 0 auto;
+  height: 64px;
+  object-fit: contain;
+  padding: 0.2rem;
+  width: 50px;
+}
+
 .topbar h1,
 .topbar p,
 .editor-header h2,
 .editor-header p {
   margin: 0;
+}
+
+.topbar h1 {
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
 }
 
 .topbar-actions,

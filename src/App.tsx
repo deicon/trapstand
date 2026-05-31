@@ -150,9 +150,12 @@ export function App() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <div>
-          <h1>Trapstand</h1>
-          <p>Rundenerfassung am Schützenstand</p>
+        <div className="brand">
+          <img className="brand-logo" src={`${import.meta.env.BASE_URL}bad-camberg-logo.jpg`} alt="Schützenverein Bad Camberg" />
+          <div>
+            <h1>Trapstand, Bad Camberg</h1>
+            <p>Rundenerfassung am Schützenstand</p>
+          </div>
         </div>
         <div className="topbar-actions">
           <button onClick={createNewRunde}>Neue Runde</button>
