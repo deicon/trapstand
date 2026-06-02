@@ -128,8 +128,9 @@ describe("Trapstand app", () => {
     expect(screen.queryByLabelText(/schie(?:ß|ss)leiter/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /schuetze hinzufuegen/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^entfernen$/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("row", { name: /anna/i })).toHaveStyle({ height: "50%" });
-    expect(screen.getByRole("row", { name: /bernd/i })).toHaveStyle({ height: "50%" });
+    expect(screen.getByRole("row", { name: /anna/i })).toHaveStyle({ height: "16.6667%" });
+    expect(screen.getByRole("row", { name: /bernd/i })).toHaveStyle({ height: "16.6667%" });
+    expect(screen.getAllByRole("row", { name: /freier schützenslot/i })).toHaveLength(4);
   });
 
   it("requires confirmation before starting a Runde and can cancel back to Schuetzenerfassung", async () => {
@@ -169,7 +170,7 @@ describe("Trapstand app", () => {
     expect(screen.getByRole("table", { name: /rundenerfassung/i })).toBeInTheDocument();
   });
 
-  it("suggests known shooters from the same day and applies their guest status", async () => {
+  it("suggests known shooters globally and applies their guest status", async () => {
     const user = userEvent.setup();
     const previous = createRunde({
       id: "previous",
@@ -197,8 +198,9 @@ describe("Trapstand app", () => {
     const suggestions = Array.from(document.querySelectorAll(`#${listId} option`)).map((option) => option.getAttribute("value"));
     expect(suggestions).toContain("Bernd");
     expect(suggestions).not.toContain("Anna");
-    expect(suggestions).not.toContain("Claudia");
+    expect(suggestions).toContain("Claudia");
 
+    await user.type(nameInput, "Ber");
     await user.click(screen.getByRole("button", { name: /bernd · gast/i }));
     expect(nameInput).toHaveValue("Bernd");
     expect(screen.getByRole("checkbox", { name: /bernd ist gast/i })).toBeChecked();
@@ -206,6 +208,171 @@ describe("Trapstand app", () => {
     await user.clear(nameInput);
     await user.type(nameInput, "Bernd");
     expect(screen.getByRole("checkbox", { name: /bernd ist gast/i })).toBeChecked();
+  });
+
+  it("shows recent global Schuetzen as pills and adds a named row when clicked", async () => {
+    const user = userEvent.setup();
+    const previous = createRunde({
+      id: "previous",
+      rundenzeit: "2026-05-30T11:00",
+      schiessleiter: "Leiter",
+      schuetzenNamen: ["Anna", "Bernd"]
+    });
+    localStorage.setItem("trapstand:datenbestand", JSON.stringify({ runden: [previous] }));
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: /neue runde/i }));
+
+    await user.click(screen.getByRole("button", { name: /^anna$/i }));
+    expect(screen.getByLabelText(/name schuetze 1/i)).toHaveValue("Anna");
+
+    await user.click(screen.getByRole("button", { name: /^bernd$/i }));
+    expect(screen.getByLabelText(/name schuetze 2/i)).toHaveValue("Bernd");
+    expect(screen.getAllByRole("button", { name: /^bernd$/i })).toHaveLength(1);
+  });
+
+  it("keeps the quick Schuetzen pills fixed while typing a new name", async () => {
+    const user = userEvent.setup();
+    const previous = createRunde({
+      id: "previous",
+      rundenzeit: "2026-05-30T11:00",
+      schiessleiter: "Leiter",
+      schuetzenNamen: ["Anna"]
+    });
+    localStorage.setItem("trapstand:datenbestand", JSON.stringify({ runden: [previous] }));
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: /neue runde/i }));
+    await user.type(screen.getByLabelText(/name schuetze 1/i), "Peter");
+
+    const quickSchuetzen = screen.getByLabelText(/zuletzt verwendete schützen/i);
+    expect(within(quickSchuetzen).getByRole("button", { name: /^anna$/i })).toBeInTheDocument();
+    expect(within(quickSchuetzen).queryByRole("button", { name: /^p$/i })).not.toBeInTheDocument();
+    expect(within(quickSchuetzen).queryByRole("button", { name: /^pe$/i })).not.toBeInTheDocument();
+    expect(within(quickSchuetzen).queryByRole("button", { name: /^pet$/i })).not.toBeInTheDocument();
+    expect(within(quickSchuetzen).queryByRole("button", { name: /^pete$/i })).not.toBeInTheDocument();
+    expect(within(quickSchuetzen).queryByRole("button", { name: /^peter$/i })).not.toBeInTheDocument();
+  });
+
+  it("opens a filterable Schuetzen list, creates Schuetzen and deletes global Schuetzen", async () => {
+    const user = userEvent.setup();
+    const previous = createRunde({
+      id: "previous",
+      rundenzeit: "2026-05-30T11:00",
+      schiessleiter: "Leiter",
+      schuetzenNamen: ["Anna", "Bernd"]
+    });
+    localStorage.setItem("trapstand:datenbestand", JSON.stringify({ runden: [previous] }));
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: /^schützen$/i }));
+    expect(screen.getByRole("heading", { name: /^schützen$/i })).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/neuer schütze/i), "Claudia");
+    await user.click(screen.getByRole("button", { name: /schütze anlegen/i }));
+    expect(screen.getByText("Claudia")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/schützen filtern/i), "ann");
+    expect(screen.getByText("Anna")).toBeInTheDocument();
+    expect(screen.queryByText("Bernd")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /anna löschen/i }));
+    expect(screen.queryByText("Anna")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /zurück zur liste/i }));
+    await user.click(screen.getByRole("button", { name: /neue runde/i }));
+    expect(screen.queryByRole("button", { name: /^anna$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^bernd$/i })).toBeInTheDocument();
+  });
+
+  it("shows Schuetzen rankings by top result and average result", async () => {
+    const anna25 = createRunde({
+      id: "anna25",
+      rundenzeit: "2026-05-30T10:00",
+      schiessleiter: "Leiter",
+      schuetzenNamen: ["Anna", "Bernd"]
+    });
+    anna25.rotte[0].tauben = anna25.rotte[0].tauben.map((taube) => ({ ...taube, status: "getroffen" }));
+    anna25.rotte[1].tauben = anna25.rotte[1].tauben.map((taube, index) => ({ ...taube, status: index < 24 ? "getroffen" : "verfehlt" }));
+    const anna20 = createRunde({
+      id: "anna20",
+      rundenzeit: "2026-05-30T12:00",
+      schiessleiter: "Leiter",
+      schuetzenNamen: ["Anna", "Claudia"]
+    });
+    anna20.rotte[0].tauben = anna20.rotte[0].tauben.map((taube, index) => ({ ...taube, status: index < 20 ? "getroffen" : "verfehlt" }));
+    anna20.rotte[1].tauben = anna20.rotte[1].tauben.map((taube, index) => ({ ...taube, status: index < 23 ? "getroffen" : "verfehlt" }));
+    localStorage.setItem("trapstand:datenbestand", JSON.stringify({ runden: [anna25, anna20] }));
+    render(<App />);
+
+    await userEvent.click(screen.getByRole("button", { name: /rangliste/i }));
+
+    const topRanking = screen.getByRole("table", { name: /rangliste top ergebnis/i });
+    expect(within(topRanking).getAllByRole("row").map((row) => row.textContent)).toEqual([
+      "RangSchuetzeTop ErgebnisRunden",
+      "1.Anna252",
+      "2.Bernd241",
+      "3.Claudia231"
+    ]);
+
+    const averageRanking = screen.getByRole("table", { name: /rangliste durchschnitt/i });
+    expect(within(averageRanking).getAllByRole("row").map((row) => row.textContent)).toEqual([
+      "RangSchuetzeDurchschnittRunden",
+      "1.Bernd24,01",
+      "2.Claudia23,01",
+      "3.Anna22,52"
+    ]);
+  });
+
+  it("shows the average result over time as a curve on the ranking page", async () => {
+    const first = createRunde({
+      id: "first",
+      rundenzeit: "2026-05-30T10:00",
+      schiessleiter: "Leiter",
+      schuetzenNamen: ["Anna", "Bernd"]
+    });
+    first.rotte[0].tauben = first.rotte[0].tauben.map((taube, index) => ({ ...taube, status: index < 20 ? "getroffen" : "verfehlt" }));
+    first.rotte[1].tauben = first.rotte[1].tauben.map((taube, index) => ({ ...taube, status: index < 10 ? "getroffen" : "verfehlt" }));
+
+    const second = createRunde({
+      id: "second",
+      rundenzeit: "2026-06-30T12:00",
+      schiessleiter: "Leiter",
+      schuetzenNamen: ["Anna", "Bernd"]
+    });
+    second.rotte[0].tauben = second.rotte[0].tauben.map((taube, index) => ({ ...taube, status: index < 24 ? "getroffen" : "verfehlt" }));
+    second.rotte[1].tauben = second.rotte[1].tauben.map((taube, index) => ({ ...taube, status: index < 16 ? "getroffen" : "verfehlt" }));
+    localStorage.setItem("trapstand:datenbestand", JSON.stringify({ runden: [second, first] }));
+    render(<App />);
+
+    await userEvent.click(screen.getByRole("button", { name: /rangliste/i }));
+
+    const chart = screen.getByRole("img", { name: /durchschnitt über zeit/i });
+    expect(chart).toBeInTheDocument();
+    expect(chart).toHaveAttribute("preserveAspectRatio", "xMidYMid meet");
+    expect(chart.querySelector("polyline.chart-line")).toHaveAttribute("points", expect.stringContaining(" "));
+    expect(chart.querySelectorAll("circle.chart-point")).toHaveLength(2);
+    expect(screen.getByText("Mai 2026 · 15,0")).toBeInTheDocument();
+    expect(screen.getByText("Juni 2026 · 20,0")).toBeInTheDocument();
+  });
+
+  it("shows a just recorded Runde in the Schuetzen rankings", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: /neue runde/i }));
+    await user.type(screen.getByLabelText(/name schuetze 1/i), "Dieter");
+    await startRunde(user);
+    await user.click(screen.getByRole("button", { name: /^treffer$/i }));
+    await user.click(screen.getByRole("button", { name: /runde beenden/i }));
+    await user.click(screen.getByRole("button", { name: /zurueck zur liste/i }));
+    await user.click(screen.getByRole("button", { name: /rangliste/i }));
+
+    const topRanking = screen.getByRole("table", { name: /rangliste top ergebnis/i });
+    expect(within(topRanking).getByRole("row", { name: /dieter/i })).toHaveTextContent("1");
+
+    const averageRanking = screen.getByRole("table", { name: /rangliste durchschnitt/i });
+    expect(within(averageRanking).getByRole("row", { name: /dieter/i })).toHaveTextContent("1,0");
   });
 
   it("suggests known Schiessleiter globally", async () => {

@@ -1,4 +1,4 @@
-import type { Datenbestand, Runde, RundenPreise } from "../domain/model";
+import type { Datenbestand, GespeicherterSchuetze, Runde, RundenPreise } from "../domain/model";
 import { DEFAULT_PREISE } from "../domain/runden";
 
 export class LocalDatenbestand {
@@ -10,6 +10,38 @@ export class LocalDatenbestand {
 
   getPreise(): RundenPreise {
     return { ...(this.read().preise ?? DEFAULT_PREISE) };
+  }
+
+  listSchuetzen(): GespeicherterSchuetze[] {
+    return sortSchuetzen(this.read().schuetzen ?? []);
+  }
+
+  listRecentSchuetzen(limit = 20): GespeicherterSchuetze[] {
+    return this.listSchuetzen().slice(0, limit);
+  }
+
+  saveSchuetze(name: string): GespeicherterSchuetze | null {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      return null;
+    }
+
+    const datenbestand = this.read();
+    const key = normalizeNameKey(trimmedName);
+    const current = (datenbestand.schuetzen ?? []).find((schuetze) => normalizeNameKey(schuetze.name) === key);
+    const schuetze: GespeicherterSchuetze = {
+      id: current?.id ?? createSchuetzeId(trimmedName),
+      name: trimmedName,
+      gaststatus: current?.gaststatus ?? false,
+      zuletztVerwendet: current?.zuletztVerwendet ?? new Date().toISOString()
+    };
+
+    this.write({
+      ...datenbestand,
+      schuetzen: sortSchuetzen([...(datenbestand.schuetzen ?? []).filter((entry) => normalizeNameKey(entry.name) !== key), schuetze])
+    });
+
+    return schuetze;
   }
 
   hasPreise(): boolean {
@@ -42,12 +74,17 @@ export class LocalDatenbestand {
         ? datenbestand.runden.map((existing) => (existing.id === runde.id ? runde : existing))
         : [...datenbestand.runden, runde];
 
-    this.write({ ...datenbestand, runden });
+    this.write({ ...datenbestand, runden, schuetzen: upsertSchuetzen(datenbestand.schuetzen ?? [], runde) });
   }
 
   delete(id: string): void {
     const datenbestand = this.read();
     this.write({ ...datenbestand, runden: datenbestand.runden.filter((runde) => runde.id !== id) });
+  }
+
+  deleteSchuetze(id: string): void {
+    const datenbestand = this.read();
+    this.write({ ...datenbestand, schuetzen: (datenbestand.schuetzen ?? []).filter((schuetze) => schuetze.id !== id) });
   }
 
   replace(datenbestand: Datenbestand): void {
@@ -61,17 +98,20 @@ export class LocalDatenbestand {
   private read(): Datenbestand {
     const raw = localStorage.getItem(this.key);
     if (!raw) {
-      return { runden: [], preise: { ...DEFAULT_PREISE } };
+      return { runden: [], schuetzen: [], preise: { ...DEFAULT_PREISE } };
     }
 
     try {
       const parsed = JSON.parse(raw) as Datenbestand;
+      const runden = Array.isArray(parsed.runden) ? parsed.runden : [];
+      const schuetzen = normalizeSchuetzen(parsed.schuetzen, runden);
       return {
-        runden: Array.isArray(parsed.runden) ? parsed.runden : [],
+        runden,
+        schuetzen,
         preise: normalizePreise(parsed.preise)
       };
     } catch {
-      return { runden: [], preise: { ...DEFAULT_PREISE } };
+      return { runden: [], schuetzen: [], preise: { ...DEFAULT_PREISE } };
     }
   }
 
@@ -98,4 +138,85 @@ function isPreise(value: unknown): value is RundenPreise {
     typeof (value as RundenPreise).mitgliedCent === "number" &&
     typeof (value as RundenPreise).gastCent === "number"
   );
+}
+
+function normalizeSchuetzen(value: unknown, runden: Runde[]): GespeicherterSchuetze[] {
+  if (Array.isArray(value)) {
+    const normalized = value
+      .filter(isStoredSchuetzeLike)
+      .map((schuetze) => ({
+        id: schuetze.id,
+        name: schuetze.name.trim(),
+        gaststatus: "gaststatus" in schuetze && typeof schuetze.gaststatus === "boolean" ? schuetze.gaststatus : false,
+        zuletztVerwendet: schuetze.zuletztVerwendet
+      }))
+      .filter((schuetze) => schuetze.name.length > 0);
+
+    return mergeDuplicateSchuetzen(normalized);
+  }
+
+  return migrateSchuetzenFromRunden(runden);
+}
+
+function isStoredSchuetzeLike(value: unknown): value is GespeicherterSchuetze | Omit<GespeicherterSchuetze, "gaststatus"> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as GespeicherterSchuetze).id === "string" &&
+    typeof (value as GespeicherterSchuetze).name === "string" &&
+    ((value as Partial<GespeicherterSchuetze>).gaststatus === undefined || typeof (value as GespeicherterSchuetze).gaststatus === "boolean") &&
+    typeof (value as GespeicherterSchuetze).zuletztVerwendet === "string"
+  );
+}
+
+function upsertSchuetzen(existing: GespeicherterSchuetze[], runde: Runde): GespeicherterSchuetze[] {
+  const byName = new Map(existing.map((schuetze) => [normalizeNameKey(schuetze.name), schuetze]));
+
+  for (const schuetze of runde.rotte) {
+    const name = schuetze.name.trim();
+    if (!name) {
+      continue;
+    }
+
+    const key = normalizeNameKey(name);
+    const current = byName.get(key);
+    byName.set(key, {
+      id: current?.id ?? createSchuetzeId(name),
+      name,
+      gaststatus: Boolean(current?.gaststatus || schuetze.gaststatus),
+      zuletztVerwendet: runde.rundenzeit
+    });
+  }
+
+  return sortSchuetzen(Array.from(byName.values()));
+}
+
+function migrateSchuetzenFromRunden(runden: Runde[]): GespeicherterSchuetze[] {
+  return runden.reduce<GespeicherterSchuetze[]>((schuetzen, runde) => upsertSchuetzen(schuetzen, runde), []);
+}
+
+function mergeDuplicateSchuetzen(schuetzen: GespeicherterSchuetze[]): GespeicherterSchuetze[] {
+  const byName = new Map<string, GespeicherterSchuetze>();
+
+  for (const schuetze of schuetzen) {
+    const key = normalizeNameKey(schuetze.name);
+    const current = byName.get(key);
+    if (!current || current.zuletztVerwendet.localeCompare(schuetze.zuletztVerwendet) < 0) {
+      byName.set(key, schuetze);
+    }
+  }
+
+  return sortSchuetzen(Array.from(byName.values()));
+}
+
+function sortSchuetzen(schuetzen: GespeicherterSchuetze[]): GespeicherterSchuetze[] {
+  return [...schuetzen].sort((a, b) => b.zuletztVerwendet.localeCompare(a.zuletztVerwendet) || a.name.localeCompare(b.name));
+}
+
+function normalizeNameKey(name: string): string {
+  return name.trim().toLocaleLowerCase();
+}
+
+function createSchuetzeId(name: string): string {
+  return `schuetze:${encodeURIComponent(normalizeNameKey(name))}`;
 }

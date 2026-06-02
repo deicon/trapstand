@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Runde, RundenPreise, Schuetze, Taubenstatus } from "./domain/model";
+import type { GespeicherterSchuetze, Runde, RundenPreise, Schuetze, Taubenstatus } from "./domain/model";
 import {
   DEFAULT_PREISE,
   addSchuetze,
@@ -19,7 +19,7 @@ import { refreshPwa } from "./pwa/refresh";
 import { LocalDatenbestand } from "./storage/datenbestand";
 import "./styles.css";
 
-type View = "list" | "editor" | "start-confirm" | "capture" | "print" | "day-print";
+type View = "list" | "editor" | "start-confirm" | "capture" | "print" | "day-print" | "schuetzen" | "rangliste";
 type PrintMode = "einzelergebnisse" | "zusammenfassung";
 type CaptureCursor = { schuetzeId: string; taube: number };
 
@@ -27,6 +27,8 @@ const store = new LocalDatenbestand();
 
 export function App() {
   const [runden, setRunden] = useState<Runde[]>(() => store.list());
+  const [schuetzen, setSchuetzen] = useState<GespeicherterSchuetze[]>(() => store.listSchuetzen());
+  const [editorRecentSchuetzen, setEditorRecentSchuetzen] = useState<GespeicherterSchuetze[]>([]);
   const [preise, setPreise] = useState<RundenPreise>(() => store.getPreise());
   const [activeId, setActiveId] = useState<string | null>(null);
   const [view, setView] = useState<View>("list");
@@ -63,6 +65,7 @@ export function App() {
 
   function refreshRunden() {
     setRunden(store.list());
+    setSchuetzen(store.listSchuetzen());
     setPreise(store.getPreise());
   }
 
@@ -76,6 +79,7 @@ export function App() {
     const runde = createEntwurf(undefined, undefined, preise);
     const defaultSchiessleiter = getDefaultSchiessleiterForDay(runden, dayKey(runde));
     const nextRunde = defaultSchiessleiter ? { ...runde, schiessleiter: defaultSchiessleiter } : runde;
+    setEditorRecentSchuetzen(store.listRecentSchuetzen(20));
     store.save(nextRunde);
     refreshRunden();
     setActiveId(nextRunde.id);
@@ -123,6 +127,17 @@ export function App() {
       setView("list");
     }
     refreshRunden();
+  }
+
+  function deleteGlobalSchuetze(id: string) {
+    store.deleteSchuetze(id);
+    refreshRunden();
+  }
+
+  function createGlobalSchuetze(name: string) {
+    const schuetze = store.saveSchuetze(name);
+    refreshRunden();
+    return schuetze;
   }
 
   function markShooterPaidForDay(day: string, name: string, paid: boolean) {
@@ -182,6 +197,11 @@ export function App() {
         </div>
         <div className="topbar-actions">
           <button onClick={createNewRunde}>Neue Runde</button>
+          <button onClick={() => {
+            setActiveId(null);
+            setView("schuetzen");
+          }}>Schützen</button>
+          {view === "list" && <button onClick={() => setView("rangliste")}>Rangliste</button>}
           <button onClick={() => void exportCsv()}>CSV</button>
           <button onClick={() => void exportBackup()}>JSON Backup</button>
           {view === "list" && <button className="quiet-button" onClick={() => void handleAppRefresh()}>Aktualisieren</button>}
@@ -194,14 +214,30 @@ export function App() {
 
       {message && <div role="status" className="status-message">{message}</div>}
 
-      {(view === "editor" || view === "start-confirm") && activeRunde ? (
+      {view === "schuetzen" ? (
+        <SchuetzenView
+          schuetzen={schuetzen}
+          onBack={() => setView("list")}
+          onCreate={createGlobalSchuetze}
+          onDelete={deleteGlobalSchuetze}
+        />
+      ) : view === "rangliste" ? (
+        <RanglisteView
+          runden={runden}
+          schuetzen={schuetzen}
+          onBack={() => setView("list")}
+        />
+      ) : (view === "editor" || view === "start-confirm") && activeRunde ? (
         <>
           <RundenEditor
             runden={runden}
+            schuetzen={schuetzen}
+            recentSchuetzen={editorRecentSchuetzen}
             runde={activeRunde}
             onBack={() => {
               setView("list");
               setActiveId(null);
+              setEditorRecentSchuetzen([]);
             }}
             onPrint={() => setView("print")}
             onStart={() => setView("start-confirm")}
@@ -225,6 +261,7 @@ export function App() {
             preise={preise}
             deleteCandidate={deleteCandidate}
             onOpen={(id) => {
+              setEditorRecentSchuetzen(store.listRecentSchuetzen(20));
               setActiveId(id);
               setView("editor");
             }}
@@ -299,9 +336,12 @@ interface RundenListeProps {
 }
 
 function RundenListe({ runden, preise, deleteCandidate, onOpen, onAskDelete, onConfirmDelete, onCancelDelete, onPrintDay, onPayDay, onPreiseChange }: RundenListeProps) {
-  const [selectedDay, setSelectedDay] = useState(todayKey());
   const [showSettings, setShowSettings] = useState(false);
   const days = Array.from(new Set(runden.map(dayKey).filter(Boolean))).sort((a, b) => b.localeCompare(a));
+  const [selectedDay, setSelectedDay] = useState(() => {
+    const today = todayKey();
+    return days.includes(today) ? today : (days[0] ?? today);
+  });
   const filteredRunden = sortRundenNewestFirst(selectedDay === "alle" ? runden : runden.filter((runde) => dayKey(runde) === selectedDay));
   const groupedRunden = groupRundenByDay(filteredRunden);
   const canPrintDay = selectedDay !== "alle" && filteredRunden.length > 0;
@@ -444,6 +484,287 @@ function RundenListItem({ runde, deleteCandidate, onOpen, onAskDelete, onConfirm
   );
 }
 
+function SchuetzenView({
+  schuetzen,
+  onBack,
+  onCreate,
+  onDelete
+}: {
+  schuetzen: GespeicherterSchuetze[];
+  onBack: () => void;
+  onCreate: (name: string) => GespeicherterSchuetze | null;
+  onDelete: (id: string) => void;
+}) {
+  const [filter, setFilter] = useState("");
+  const [newName, setNewName] = useState("");
+  const query = filter.trim().toLocaleLowerCase();
+  const filteredSchuetzen = schuetzen
+    .filter((schuetze) => !query || schuetze.name.toLocaleLowerCase().includes(query))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  function createSchuetze() {
+    const schuetze = onCreate(newName);
+    if (schuetze) {
+      setNewName("");
+      setFilter("");
+    }
+  }
+
+  return (
+    <section className="panel">
+      <div className="section-header">
+        <h2>Schützen</h2>
+        <button onClick={onBack}>Zurück zur Liste</button>
+      </div>
+      <div className="list-filters">
+        <label>
+          Neuer Schütze
+          <input value={newName} onChange={(event) => setNewName(event.target.value)} />
+        </label>
+        <button disabled={newName.trim().length === 0} onClick={createSchuetze}>Schütze anlegen</button>
+      </div>
+      <div className="list-filters">
+        <label>
+          Schützen filtern
+          <input value={filter} onChange={(event) => setFilter(event.target.value)} />
+        </label>
+      </div>
+      {filteredSchuetzen.length === 0 ? (
+        <p className="empty-state">Keine Schützen gefunden.</p>
+      ) : (
+        <ul className="person-list">
+          {filteredSchuetzen.map((schuetze) => (
+            <li key={schuetze.id} className="person-row">
+              <span>{schuetze.name}</span>
+              <button className="danger" onClick={() => onDelete(schuetze.id)}>{schuetze.name} löschen</button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function RanglisteView({ runden, schuetzen, onBack }: { runden: Runde[]; schuetzen: GespeicherterSchuetze[]; onBack: () => void }) {
+  const rangliste = getRangliste(runden, schuetzen);
+  const verlauf = getDurchschnittVerlauf(runden);
+  const topRanking = [...rangliste].sort((a, b) => b.topErgebnis - a.topErgebnis || b.runden - a.runden || a.name.localeCompare(b.name));
+  const averageRanking = [...rangliste].sort((a, b) => b.durchschnitt - a.durchschnitt || b.topErgebnis - a.topErgebnis || a.name.localeCompare(b.name));
+
+  return (
+    <section className="panel">
+      <div className="section-header">
+        <h2>Rangliste</h2>
+        <button onClick={onBack}>Zurück zur Liste</button>
+      </div>
+      {rangliste.length === 0 ? (
+        <p className="empty-state">Keine Schützen für die Rangliste.</p>
+      ) : (
+        <>
+          <DurchschnittVerlaufChart verlauf={verlauf} />
+          <div className="ranking-grid">
+            <RankingTable
+              title="Top Ergebnis"
+              ariaLabel="Rangliste Top Ergebnis"
+              rows={topRanking}
+              valueHeader="Top Ergebnis"
+              value={(row) => String(row.topErgebnis)}
+            />
+            <RankingTable
+              title="Durchschnitt"
+              ariaLabel="Rangliste Durchschnitt"
+              rows={averageRanking}
+              valueHeader="Durchschnitt"
+              value={(row) => formatAverage(row.durchschnitt)}
+            />
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+interface RankingRow {
+  name: string;
+  topErgebnis: number;
+  durchschnitt: number;
+  runden: number;
+}
+
+interface DurchschnittVerlaufPoint {
+  monat: string;
+  durchschnitt: number;
+}
+
+function DurchschnittVerlaufChart({ verlauf }: { verlauf: DurchschnittVerlaufPoint[] }) {
+  if (verlauf.length === 0) {
+    return null;
+  }
+
+  const width = 1600;
+  const height = 320;
+  const padding = 28;
+  const plotWidth = width - padding * 2;
+  const plotHeight = height - padding * 2;
+  const maxValue = Math.max(25, ...verlauf.map((point) => point.durchschnitt));
+  const minValue = 0;
+  const xForIndex = (index: number) => padding + (verlauf.length === 1 ? plotWidth / 2 : (index / (verlauf.length - 1)) * plotWidth);
+  const yForValue = (value: number) => padding + ((maxValue - value) / (maxValue - minValue)) * plotHeight;
+  const points = verlauf.map((point, index) => `${xForIndex(index)},${yForValue(point.durchschnitt)}`).join(" ");
+
+  return (
+    <section className="ranking-chart-section">
+      <h3>Durchschnitt über Zeit</h3>
+      <div className="ranking-chart-wrap">
+        <svg className="ranking-chart" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label="Durchschnitt über Zeit">
+          <line className="chart-axis" x1={padding} y1={padding} x2={padding} y2={height - padding} />
+          <line className="chart-axis" x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} />
+          <text className="chart-label" x={padding} y={padding - 8}>25</text>
+          <text className="chart-label" x={padding} y={height - 8}>0</text>
+          {verlauf.length > 1 && <polyline className="chart-line" points={points} />}
+          {verlauf.map((point, index) => (
+            <g key={`${point.monat}-${index}`}>
+              <circle className="chart-point" cx={xForIndex(index)} cy={yForValue(point.durchschnitt)} r="4" />
+              <title>{`${formatMonthLabel(point.monat)} · ${formatAverage(point.durchschnitt)}`}</title>
+            </g>
+          ))}
+          {verlauf.map((point, index) => (
+            <text key={point.monat} className="chart-label chart-month-label" x={xForIndex(index)} y={height - 8}>
+              {formatMonthShortLabel(point.monat)}
+            </text>
+          ))}
+        </svg>
+      </div>
+    </section>
+  );
+}
+
+function RankingTable({
+  title,
+  ariaLabel,
+  rows,
+  valueHeader,
+  value
+}: {
+  title: string;
+  ariaLabel: string;
+  rows: RankingRow[];
+  valueHeader: string;
+  value: (row: RankingRow) => string;
+}) {
+  return (
+    <section>
+      <h3>{title}</h3>
+      <table className="ranking-table" aria-label={ariaLabel}>
+        <thead>
+          <tr>
+            <th>Rang</th>
+            <th>Schuetze</th>
+            <th>{valueHeader}</th>
+            <th>Runden</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, index) => (
+            <tr key={row.name}>
+              <td>{index + 1}.</td>
+              <th>{row.name}</th>
+              <td>{value(row)}</td>
+              <td>{row.runden}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
+function getRangliste(runden: Runde[], schuetzen: GespeicherterSchuetze[]): RankingRow[] {
+  const stats = new Map<string, { name: string; topErgebnis: number; summe: number; runden: number }>();
+
+  for (const schuetze of schuetzen) {
+    stats.set(normalizeNameKey(schuetze.name), {
+      name: schuetze.name,
+      topErgebnis: 0,
+      summe: 0,
+      runden: 0
+    });
+  }
+
+  for (const runde of runden) {
+    for (const schuetze of runde.rotte) {
+      const name = schuetze.name.trim();
+      if (!name) {
+        continue;
+      }
+
+      const key = normalizeNameKey(name);
+      const current = stats.get(key) ?? { name, topErgebnis: 0, summe: 0, runden: 0 };
+      const ergebnis = schuetzenErgebnis(schuetze);
+      stats.set(key, {
+        name: current.name,
+        topErgebnis: Math.max(current.topErgebnis, ergebnis),
+        summe: current.summe + ergebnis,
+        runden: current.runden + 1
+      });
+    }
+  }
+
+  return Array.from(stats.values()).map((row) => ({
+    name: row.name,
+    topErgebnis: row.topErgebnis,
+    durchschnitt: row.runden > 0 ? row.summe / row.runden : 0,
+    runden: row.runden
+  }));
+}
+
+function getDurchschnittVerlauf(runden: Runde[]): DurchschnittVerlaufPoint[] {
+  const months = new Map<string, { summe: number; count: number }>();
+
+  for (const runde of runden) {
+    const monat = monthKey(runde.rundenzeit);
+    if (!monat) {
+      continue;
+    }
+
+    for (const schuetze of runde.rotte) {
+      if (!schuetze.name.trim()) {
+        continue;
+      }
+
+      const current = months.get(monat) ?? { summe: 0, count: 0 };
+      months.set(monat, {
+        summe: current.summe + schuetzenErgebnis(schuetze),
+        count: current.count + 1
+      });
+    }
+  }
+
+  return Array.from(months.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([monat, values]) => ({
+      monat,
+      durchschnitt: values.count > 0 ? values.summe / values.count : 0
+    }));
+}
+
+function monthKey(value: string): string {
+  const match = /^(\d{4})-(\d{2})/.exec(value);
+  return match ? `${match[1]}-${match[2]}` : "";
+}
+
+function formatMonthLabel(month: string): string {
+  const [year, monthNumber] = month.split("-");
+  const date = new Date(Number(year), Number(monthNumber) - 1, 1);
+  return new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric" }).format(date);
+}
+
+function formatMonthShortLabel(month: string): string {
+  const [year, monthNumber] = month.split("-");
+  const date = new Date(Number(year), Number(monthNumber) - 1, 1);
+  return new Intl.DateTimeFormat("de-DE", { month: "short" }).format(date);
+}
+
 function groupRundenByDay(runden: Runde[]): Array<{ key: string; label: string; runden: Runde[] }> {
   const groups = new Map<string, Runde[]>();
   for (const runde of runden) {
@@ -504,6 +825,14 @@ function formatMoney(cent: number): string {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(cent / 100);
 }
 
+function formatAverage(value: number): string {
+  return new Intl.NumberFormat("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value);
+}
+
+function normalizeNameKey(name: string): string {
+  return name.trim().toLocaleLowerCase();
+}
+
 function getRundenPreise(runde: Runde): RundenPreise {
   return runde.preise ?? DEFAULT_PREISE;
 }
@@ -550,6 +879,8 @@ function sumRundengeld(runden: Runde[]): { mitgliederCent: number; gaesteCent: n
 
 interface RundenEditorProps {
   runden: Runde[];
+  schuetzen: GespeicherterSchuetze[];
+  recentSchuetzen: GespeicherterSchuetze[];
   runde: Runde;
   onBack: () => void;
   onPrint: () => void;
@@ -558,12 +889,13 @@ interface RundenEditorProps {
   onMessage: (message: string) => void;
 }
 
-function RundenEditor({ runden, runde, onBack, onPrint, onStart, onChange, onMessage }: RundenEditorProps) {
+function RundenEditor({ runden, schuetzen, recentSchuetzen, runde, onBack, onPrint, onStart, onChange, onMessage }: RundenEditorProps) {
   const rotteLocked = hasRundeneintraege(runde);
   const ergebnisseLocked = runde.gesperrt === true;
   const [validationMessage, setValidationMessage] = useState("");
-  const knownShooters = getKnownShootersForDay(runden, runde);
+  const knownShooters = getKnownShooters(schuetzen);
   const knownSchiessleiter = getKnownSchiessleiter(runden, runde);
+  const currentShooterNames = new Set(runde.rotte.map((schuetze) => schuetze.name.trim()).filter(Boolean));
 
   function toggleGesperrt() {
     if (!ergebnisseLocked && runde.schiessleiter.trim().length === 0) {
@@ -595,6 +927,24 @@ function RundenEditor({ runden, runde, onBack, onPrint, onStart, onChange, onMes
 
   function applyKnownShooter(schuetzeId: string, knownShooter: KnownShooter) {
     onChange(updateSchuetze(runde, schuetzeId, { name: knownShooter.name, gaststatus: knownShooter.gaststatus }));
+  }
+
+  function addRecentSchuetze(schuetze: GespeicherterSchuetze) {
+    if (rotteLocked || ergebnisseLocked || currentShooterNames.has(schuetze.name)) {
+      return;
+    }
+
+    const emptySchuetze = runde.rotte.find((entry) => entry.name.trim().length === 0);
+    if (emptySchuetze) {
+      onChange(updateSchuetze(runde, emptySchuetze.id, { name: schuetze.name, gaststatus: schuetze.gaststatus }));
+      return;
+    }
+
+    if (runde.rotte.length < 6) {
+      const nextRunde = addSchuetze(runde);
+      const newSchuetze = nextRunde.rotte[nextRunde.rotte.length - 1];
+      onChange(updateSchuetze(nextRunde, newSchuetze.id, { name: schuetze.name, gaststatus: schuetze.gaststatus }));
+    }
   }
 
   return (
@@ -642,7 +992,7 @@ function RundenEditor({ runden, runde, onBack, onPrint, onStart, onChange, onMes
               ))}
             </datalist>
             {!ergebnisseLocked && getVisibleSchiessleiterSuggestions(knownSchiessleiter, runde.schiessleiter).length > 0 && (
-              <div className="name-suggestions" aria-label="Vorschlaege Schießleiter">
+              <div className="name-suggestions" aria-label="Vorschlaege Standaufsicht">
                 {getVisibleSchiessleiterSuggestions(knownSchiessleiter, runde.schiessleiter).map((name) => (
                   <button
                     key={name}
@@ -665,6 +1015,25 @@ function RundenEditor({ runden, runde, onBack, onPrint, onStart, onChange, onMes
       {ergebnisseLocked && <p className="lock-note">Runde gesperrt: Ergebnisse koennen erst nach dem Entsperren wieder geaendert werden.</p>}
       {validationMessage && <div role="alert" className="alert-message">{validationMessage}</div>}
 
+      {!ergebnisseLocked && !rotteLocked && recentSchuetzen.length > 0 && (
+        <div className="recent-shooters" aria-label="Zuletzt verwendete Schützen">
+          {recentSchuetzen.map((schuetze) => (
+            <button
+              key={schuetze.id}
+              type="button"
+              className="suggestion-button"
+              disabled={
+                currentShooterNames.has(schuetze.name) ||
+                (runde.rotte.length >= 6 && !runde.rotte.some((entry) => entry.name.trim().length === 0))
+              }
+              onClick={() => addRecentSchuetze(schuetze)}
+            >
+              {schuetze.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="setup-table-wrap">
         <table className="setup-table" aria-label="Schuetzen vorbereiten">
           <thead>
@@ -686,7 +1055,7 @@ function RundenEditor({ runden, runde, onBack, onPrint, onStart, onChange, onMes
               );
               const suggestions = knownShooters.filter((knownSchuetze) => !currentNames.has(knownSchuetze.name) && knownSchuetze.name !== schuetze.name.trim());
               const query = schuetze.name.trim().toLocaleLowerCase();
-              const visibleSuggestions = suggestions.filter((knownSchuetze) => !query || knownSchuetze.name.toLocaleLowerCase().includes(query));
+              const visibleSuggestions = query ? suggestions.filter((knownSchuetze) => knownSchuetze.name.toLocaleLowerCase().includes(query)) : [];
 
               return (
               <tr key={schuetze.id} aria-label={schuetze.name || `Schuetze ${schuetzeIndex + 1}`}>
@@ -773,30 +1142,8 @@ interface KnownShooter {
   gaststatus: boolean;
 }
 
-function getKnownShootersForDay(runden: Runde[], activeRunde: Runde): KnownShooter[] {
-  const day = dayKey(activeRunde);
-  const shooters = new Map<string, KnownShooter>();
-
-  for (const runde of runden) {
-    if (runde.id === activeRunde.id || dayKey(runde) !== day) {
-      continue;
-    }
-
-    for (const schuetze of runde.rotte) {
-      const name = schuetze.name.trim();
-      if (!name) {
-        continue;
-      }
-
-      const knownShooter = shooters.get(name);
-      shooters.set(name, {
-        name,
-        gaststatus: Boolean(knownShooter?.gaststatus || schuetze.gaststatus)
-      });
-    }
-  }
-
-  return Array.from(shooters.values()).sort((a, b) => a.name.localeCompare(b.name));
+function getKnownShooters(schuetzen: GespeicherterSchuetze[]): KnownShooter[] {
+  return schuetzen.map((schuetze) => ({ name: schuetze.name, gaststatus: schuetze.gaststatus })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function getKnownSchiessleiter(runden: Runde[], activeRunde: Runde): string[] {
@@ -821,7 +1168,22 @@ function getDefaultSchiessleiterForDay(runden: Runde[], day: string): string {
     .filter((runde) => dayKey(runde) === day && runde.schiessleiter.trim().length > 0)
     .sort((a, b) => a.rundenzeit.localeCompare(b.rundenzeit))[0];
 
-  return firstRunde?.schiessleiter.trim() ?? "";
+  if (firstRunde) {
+    return firstRunde.schiessleiter.trim();
+  }
+
+  const fallbackDay = [...runden]
+    .filter((runde) => runde.schiessleiter.trim().length > 0)
+    .map(dayKey)
+    .sort((a, b) => b.localeCompare(a))[0];
+
+  if (!fallbackDay) {
+    return "";
+  }
+
+  return [...runden]
+    .filter((runde) => dayKey(runde) === fallbackDay && runde.schiessleiter.trim().length > 0)
+    .sort((a, b) => a.rundenzeit.localeCompare(b.rundenzeit))[0]?.schiessleiter.trim() ?? "";
 }
 
 function getVisibleSchiessleiterSuggestions(knownSchiessleiter: string[], currentValue: string): string[] {
@@ -935,6 +1297,9 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
   const ergebnisseLocked = runde.gesperrt === true;
   const activeCursor = isValidCursor(runde, manualCursor) ? manualCursor : getNextCaptureCursor(runde);
   const inputsDisabled = ergebnisseLocked || safetyPending;
+  const captureSlotCount = 6;
+  const captureSlotHeight = `${(100 / captureSlotCount).toFixed(4)}%`;
+  const emptyCaptureSlots = Array.from({ length: Math.max(0, captureSlotCount - runde.rotte.length) }, (_, index) => index + 1);
 
   useEffect(() => {
     setTaubenPage(0);
@@ -1026,7 +1391,7 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
           </thead>
           <tbody>
             {runde.rotte.map((schuetze, schuetzeIndex) => (
-              <tr key={schuetze.id} aria-label={schuetze.name || `Schuetze ${schuetzeIndex + 1}`} style={{ height: `${100 / runde.rotte.length}%` }}>
+              <tr key={schuetze.id} aria-label={schuetze.name || `Schuetze ${schuetzeIndex + 1}`} style={{ height: captureSlotHeight }}>
                 <th className="sticky-name">{schuetze.name || `Schuetze ${schuetzeIndex + 1}`}</th>
                 {schuetze.tauben.slice(firstTaubeIndex, lastTaubeIndex).map((taube, index) => (
                   <td key={taube.nummer} className={taube.nummer % 5 === 0 ? "group-end" : undefined}>
@@ -1041,6 +1406,11 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
                   </td>
                 ))}
                 <td className="result-cell">Ergebnis: {schuetzenErgebnis(schuetze)}</td>
+              </tr>
+            ))}
+            {emptyCaptureSlots.map((slot) => (
+              <tr key={`empty-capture-slot-${slot}`} className="capture-empty-row" aria-label={`Freier Schützenslot ${slot}`} style={{ height: captureSlotHeight }}>
+                <td colSpan={visibleTauben.length + 2} />
               </tr>
             ))}
           </tbody>

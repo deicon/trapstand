@@ -1,4 +1,4 @@
-import type { Datenbestand, Runde, RundenPreise, Schuetze, Taube, Taubenstatus } from "../domain/model";
+import type { Datenbestand, GespeicherterSchuetze, Runde, RundenPreise, Schuetze, Taube, Taubenstatus } from "../domain/model";
 
 const backupVersion = 1;
 
@@ -12,17 +12,25 @@ export function importBackupJson(json: string): Datenbestand {
     if (!isDatenbestandBackup(parsed)) {
       throw new Error("invalid");
     }
-    return parsed.preise ? { runden: parsed.runden, preise: parsed.preise } : { runden: parsed.runden };
+    return {
+      runden: parsed.runden,
+      ...(parsed.schuetzen ? { schuetzen: parsed.schuetzen } : {}),
+      ...(parsed.preise ? { preise: parsed.preise } : {})
+    };
   } catch {
     throw new Error("Ungueltiger Backup-Export.");
   }
 }
 
-function isDatenbestandBackup(value: unknown): value is { version: number; runden: Runde[]; preise?: RundenPreise } {
+function isDatenbestandBackup(value: unknown): value is { version: number; runden: Runde[]; schuetzen?: GespeicherterSchuetze[]; preise?: RundenPreise } {
   if (!isRecord(value) || value.version !== backupVersion || !Array.isArray(value.runden)) {
     return false;
   }
-  return (value.preise === undefined || isPreise(value.preise)) && value.runden.every(isRunde);
+  return (
+    (value.preise === undefined || isPreise(value.preise)) &&
+    (value.schuetzen === undefined || (Array.isArray(value.schuetzen) && value.schuetzen.every(isGespeicherterSchuetze))) &&
+    value.runden.every(isRunde)
+  );
 }
 
 function isRunde(value: unknown): value is Runde {
@@ -55,6 +63,16 @@ function isSchuetze(value: unknown): value is Schuetze {
     Array.isArray(value.tauben) &&
     value.tauben.length === 25 &&
     value.tauben.every(isTaube)
+  );
+}
+
+function isGespeicherterSchuetze(value: unknown): value is GespeicherterSchuetze {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.name === "string" &&
+    typeof value.gaststatus === "boolean" &&
+    typeof value.zuletztVerwendet === "string"
   );
 }
 

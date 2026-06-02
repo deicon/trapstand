@@ -13,6 +13,13 @@ export interface Schuetze {
   tauben: Taube[];
 }
 
+export interface GespeicherterSchuetze {
+  id: string;
+  name: string;
+  gaststatus: boolean;
+  zuletztVerwendet: string;
+}
+
 export interface RundenPreise {
   mitgliedCent: number;
   gastCent: number;
@@ -30,6 +37,7 @@ export interface Runde {
 
 export interface Datenbestand {
   runden: Runde[];
+  schuetzen?: GespeicherterSchuetze[];
   preise?: RundenPreise;
 }
 

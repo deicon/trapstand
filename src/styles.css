@@ -180,6 +180,19 @@ input {
   margin: 0 0 1rem;
 }
 
+.section-header {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.section-header h2 {
+  margin: 0;
+}
+
 .list-filters select {
   border: 1px solid #9aa39f;
   border-radius: 6px;
@@ -315,12 +328,126 @@ input {
   gap: 0.35rem;
 }
 
+.recent-shooters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 1rem;
+}
+
 .suggestion-button {
   background: #edf3ef;
   border-color: #b8c8bf;
   font-size: 0.9rem;
   min-height: 34px;
   padding: 0.25rem 0.5rem;
+}
+
+.person-list {
+  display: grid;
+  gap: 0.6rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.person-row {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #d0d5d2;
+  border-radius: 8px;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  padding: 0.75rem;
+}
+
+.ranking-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.ranking-chart-section {
+  margin: 0 -1rem 1.25rem;
+  width: calc(100% + 2rem);
+}
+
+.ranking-chart-section h3 {
+  margin: 0 0 0.5rem;
+}
+
+.ranking-chart-wrap {
+  background: #ffffff;
+  border: 1px solid #c7cec9;
+  border-left: 0;
+  border-right: 0;
+  border-radius: 0;
+  height: 20vh;
+  min-height: 150px;
+  overflow: hidden;
+  padding: 0.4rem 0.6rem;
+  width: 100%;
+}
+
+.ranking-chart {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  object-fit: contain;
+  width: 100%;
+}
+
+.chart-axis {
+  stroke: #8a9690;
+  stroke-width: 1.5;
+}
+
+.chart-line {
+  fill: none;
+  stroke: #174c3a;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+}
+
+.chart-point {
+  fill: #174c3a;
+  stroke: #ffffff;
+  stroke-width: 2;
+}
+
+.chart-label {
+  fill: #35423b;
+  font-size: 0.75rem;
+}
+
+.chart-month-label {
+  text-anchor: middle;
+}
+
+.ranking-grid h3 {
+  margin: 0 0 0.5rem;
+}
+
+.ranking-table {
+  background: #ffffff;
+  border: 1px solid #c7cec9;
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.ranking-table th,
+.ranking-table td {
+  border-bottom: 1px solid #dfe4e1;
+  padding: 0.55rem 0.65rem;
+  text-align: left;
+}
+
+.ranking-table td:nth-child(1),
+.ranking-table td:nth-child(3),
+.ranking-table td:nth-child(4) {
+  text-align: right;
 }
 
 .capture-shell {
@@ -389,6 +516,11 @@ input {
 
 .capture-table tbody {
   height: calc(100% - 42px);
+}
+
+.capture-empty-row td {
+  background: #f4f0e8;
+  border-color: #e1dcd2;
 }
 
 .capture-table .taube {
@@ -682,7 +814,7 @@ input {
   padding: 1rem;
 }
 
-table {
+.print-view table {
   border-collapse: collapse;
   min-width: 1200px;
   width: 100%;
