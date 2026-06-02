@@ -36,6 +36,7 @@ export function App() {
   const [deleteCandidate, setDeleteCandidate] = useState<string | null>(null);
   const [printDay, setPrintDay] = useState<string | null>(null);
   const [paymentDay, setPaymentDay] = useState<string | null>(null);
+  const [showMainSettings, setShowMainSettings] = useState(false);
 
   const activeRunde = useMemo(() => runden.find((runde) => runde.id === activeId), [activeId, runden]);
 
@@ -95,9 +96,9 @@ export function App() {
     setPreise(next);
   }
 
-  async function exportCsv() {
-    const csv = exportRundenCsv(runden);
-    await downloadOrShare("trapstand-runden.csv", csv, "text/csv");
+  async function exportDayCsv(day: string) {
+    const csv = exportRundenCsv(sortRundenNewestFirst(runden.filter((runde) => dayKey(runde) === day)));
+    await downloadOrShare(`trapstand-${day}.csv`, csv, "text/csv");
     setMessage("CSV-Export vorbereitet.");
   }
 
@@ -172,7 +173,13 @@ export function App() {
   }
 
   if (view === "day-print" && printDay) {
-    return <PrintView runden={sortRundenNewestFirst(runden.filter((runde) => dayKey(runde) === printDay))} onBack={() => setView("list")} />;
+    return (
+      <PrintView
+        runden={sortRundenNewestFirst(runden.filter((runde) => dayKey(runde) === printDay))}
+        onBack={() => setView("list")}
+        onExportCsv={() => void exportDayCsv(printDay)}
+      />
+    );
   }
 
   if (view === "capture" && activeRunde) {
@@ -197,18 +204,63 @@ export function App() {
         </div>
         <div className="topbar-actions">
           <button onClick={createNewRunde}>Neue Runde</button>
-          <button onClick={() => {
-            setActiveId(null);
-            setView("schuetzen");
-          }}>Schützen</button>
-          {view === "list" && <button onClick={() => setView("rangliste")}>Rangliste</button>}
-          <button onClick={() => void exportCsv()}>CSV</button>
-          <button onClick={() => void exportBackup()}>JSON Backup</button>
-          {view === "list" && <button className="quiet-button" onClick={() => void handleAppRefresh()}>Aktualisieren</button>}
-          <label className="file-action">
-            Import
-            <input type="file" accept="application/json,.json" onChange={(event) => void importBackup(event.target.files?.[0])} />
-          </label>
+          <button
+            onClick={() => {
+              setActiveId(null);
+              setView("rangliste");
+            }}
+          >
+            Rangliste
+          </button>
+          <div className="settings-menu-wrap">
+            <button aria-expanded={showMainSettings} aria-haspopup="menu" onClick={() => setShowMainSettings((visible) => !visible)}>
+              Einstellungen
+            </button>
+            {showMainSettings && (
+              <div className="settings-menu" role="menu">
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setShowMainSettings(false);
+                    setActiveId(null);
+                    setView("schuetzen");
+                  }}
+                >
+                  Schützen
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setShowMainSettings(false);
+                    void exportBackup();
+                  }}
+                >
+                  Backup
+                </button>
+                <button
+                  role="menuitem"
+                  className="quiet-button"
+                  onClick={() => {
+                    setShowMainSettings(false);
+                    void handleAppRefresh();
+                  }}
+                >
+                  Aktualisieren
+                </button>
+                <label className="file-action settings-file-action" role="menuitem">
+                  Import
+                  <input
+                    type="file"
+                    accept="application/json,.json"
+                    onChange={(event) => {
+                      setShowMainSettings(false);
+                      void importBackup(event.target.files?.[0]);
+                    }}
+                  />
+                </label>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -351,7 +403,7 @@ function RundenListe({ runden, preise, deleteCandidate, onOpen, onAskDelete, onC
       <h2>Rundenliste</h2>
       <div className="settings-strip">
         <span>Preise: Mitglied {formatMoney(preise.mitgliedCent)} · Gast {formatMoney(preise.gastCent)}</span>
-        <button onClick={() => setShowSettings(true)}>Einstellungen</button>
+        <button onClick={() => setShowSettings(true)}>Preise</button>
       </div>
       {showSettings && (
         <SettingsDialog
@@ -1568,7 +1620,7 @@ function sequenceIndex(taube: number, schuetzeIndex: number, rotteSize: number):
   return (taube - 1) * rotteSize + schuetzeIndex;
 }
 
-function PrintView({ runden, onBack }: { runden: Runde[]; onBack: () => void }) {
+function PrintView({ runden, onBack, onExportCsv }: { runden: Runde[]; onBack: () => void; onExportCsv?: () => void }) {
   const [mode, setMode] = useState<PrintMode>("einzelergebnisse");
   const totalRundengeld = sumRundengeld(runden);
 
@@ -1578,6 +1630,7 @@ function PrintView({ runden, onBack }: { runden: Runde[]; onBack: () => void }) 
         <button onClick={onBack}>Zurueck</button>
         <button aria-pressed={mode === "einzelergebnisse"} onClick={() => setMode("einzelergebnisse")}>Einzelergebnisse</button>
         <button aria-pressed={mode === "zusammenfassung"} onClick={() => setMode("zusammenfassung")}>Zusammenfassung</button>
+        {onExportCsv && <button onClick={onExportCsv}>CSV</button>}
         <button onClick={() => window.print()}>Drucken</button>
       </div>
       <h1>Druckansicht</h1>

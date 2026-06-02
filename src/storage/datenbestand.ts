@@ -1,5 +1,5 @@
 import type { Datenbestand, GespeicherterSchuetze, Runde, RundenPreise } from "../domain/model";
-import { DEFAULT_PREISE } from "../domain/runden";
+import { DEFAULT_PREISE, isVollstaendigeRunde } from "../domain/runden";
 
 export class LocalDatenbestand {
   constructor(private readonly key = "trapstand:datenbestand") {}
@@ -74,7 +74,11 @@ export class LocalDatenbestand {
         ? datenbestand.runden.map((existing) => (existing.id === runde.id ? runde : existing))
         : [...datenbestand.runden, runde];
 
-    this.write({ ...datenbestand, runden, schuetzen: upsertSchuetzen(datenbestand.schuetzen ?? [], runde) });
+    this.write({
+      ...datenbestand,
+      runden,
+      schuetzen: shouldSyncSchuetzen(runde) ? upsertSchuetzen(datenbestand.schuetzen ?? [], runde) : (datenbestand.schuetzen ?? [])
+    });
   }
 
   delete(id: string): void {
@@ -138,6 +142,10 @@ function isPreise(value: unknown): value is RundenPreise {
     typeof (value as RundenPreise).mitgliedCent === "number" &&
     typeof (value as RundenPreise).gastCent === "number"
   );
+}
+
+function shouldSyncSchuetzen(runde: Runde): boolean {
+  return runde.gesperrt === true || isVollstaendigeRunde(runde);
 }
 
 function normalizeSchuetzen(value: unknown, runden: Runde[]): GespeicherterSchuetze[] {

@@ -94,7 +94,7 @@ describe("Trapstand app", () => {
     await waitFor(() => expect(screen.getByText(/preise: mitglied 6,00/i)).toBeInTheDocument());
     expect(screen.queryByLabelText(/^mitglied$/i)).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /einstellungen/i }));
+    await user.click(screen.getByRole("button", { name: /preise/i }));
     expect(screen.getByLabelText(/^mitglied$/i)).toHaveValue(6);
     expect(screen.getByLabelText(/^gast$/i)).toHaveValue(9);
     await user.clear(screen.getByLabelText(/^mitglied$/i));
@@ -110,6 +110,27 @@ describe("Trapstand app", () => {
     const datenbestand = JSON.parse(localStorage.getItem("trapstand:datenbestand") ?? "{}");
     expect(datenbestand.preise).toEqual({ mitgliedCent: 700, gastCent: 1000 });
     expect(datenbestand.runden[0].preise).toEqual({ mitgliedCent: 700, gastCent: 1000 });
+  });
+
+  it("keeps secondary actions in the Einstellungen menu", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(screen.getByRole("button", { name: /neue runde/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /rangliste/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^einstellungen$/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^schützen$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^csv$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^backup$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /aktualisieren/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /^einstellungen$/i }));
+
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /^schützen$/i })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /^backup$/i })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /aktualisieren/i })).toBeInTheDocument();
+    expect(screen.getByText(/^import$/i)).toBeInTheDocument();
   });
 
   it("shows only the scoring table while a Runde is running", async () => {
@@ -265,7 +286,8 @@ describe("Trapstand app", () => {
     localStorage.setItem("trapstand:datenbestand", JSON.stringify({ runden: [previous] }));
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: /^schützen$/i }));
+    await user.click(screen.getByRole("button", { name: /^einstellungen$/i }));
+    await user.click(screen.getByRole("menuitem", { name: /^schützen$/i }));
     expect(screen.getByRole("heading", { name: /^schützen$/i })).toBeInTheDocument();
 
     await user.type(screen.getByLabelText(/neuer schütze/i), "Claudia");
@@ -511,7 +533,8 @@ describe("Trapstand app", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: /aktualisieren/i }));
+    await user.click(screen.getByRole("button", { name: /^einstellungen$/i }));
+    await user.click(screen.getByRole("menuitem", { name: /aktualisieren/i }));
     expect(refreshPwa).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole("button", { name: /neue runde/i }));
@@ -525,7 +548,7 @@ describe("Trapstand app", () => {
     expect(refreshPwa).toHaveBeenCalledTimes(1);
   });
 
-  it("exports CSV, shows Druckansicht and deletes a Runde after confirmation", async () => {
+  it("shows Druckansicht, exports selected day as CSV and deletes a Runde after confirmation", async () => {
     const user = userEvent.setup();
     render(<App />);
 
@@ -544,10 +567,12 @@ describe("Trapstand app", () => {
     expect(screen.getByText(/^zwischenstand 1$/i)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /zurueck/i }));
 
-    await user.click(screen.getByRole("button", { name: /csv/i }));
+    await user.click(screen.getByRole("button", { name: /zurueck zur liste/i }));
+    await user.click(screen.getByRole("button", { name: /tag ausdrucken/i }));
+    await user.click(screen.getByRole("button", { name: /^csv$/i }));
+    await user.click(screen.getByRole("button", { name: /zurueck/i }));
     expect(screen.getByRole("status")).toHaveTextContent(/csv-export vorbereitet/i);
 
-    await user.click(screen.getByRole("button", { name: /zurueck zur liste/i }));
     const row = screen.getByRole("listitem");
     await user.click(within(row).getByRole("button", { name: /loeschen/i }));
     await user.click(screen.getByRole("button", { name: /wirklich loeschen/i }));
@@ -758,6 +783,7 @@ describe("Trapstand app", () => {
     await user.click(screen.getByRole("button", { name: /tag ausdrucken/i }));
 
     expect(screen.getByRole("heading", { name: /druckansicht/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^csv$/i })).toBeInTheDocument();
     expect(screen.getByText(/leiter eins/i)).toBeInTheDocument();
     expect(screen.getByText(/leiter zwei/i)).toBeInTheDocument();
     expect(screen.queryByText(/leiter alt/i)).not.toBeInTheDocument();
@@ -816,7 +842,7 @@ describe("Trapstand app", () => {
     expect(screen.getByRole("checkbox", { name: /bernd hat bezahlt/i })).not.toBeChecked();
   });
 
-  it("shares JSON Backup as a text file when application/json is not shareable", async () => {
+  it("shares Backup as a text file when application/json is not shareable", async () => {
     const user = userEvent.setup();
     const share = vi.fn();
     const canShare = vi.fn((payload: ShareData) => {
@@ -828,7 +854,8 @@ describe("Trapstand app", () => {
 
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: /json backup/i }));
+    await user.click(screen.getByRole("button", { name: /^einstellungen$/i }));
+    await user.click(screen.getByRole("menuitem", { name: /^backup$/i }));
 
     await waitFor(() => expect(share).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -844,24 +871,38 @@ describe("Trapstand app", () => {
     const share = vi.fn();
     const canShare = vi.fn((payload: ShareData) => {
       const file = payload.files?.[0];
-      return file?.name === "trapstand-runden.csv" && file.type === "text/plain";
+      return file?.name === "trapstand-2026-05-31.csv" && file.type === "text/plain";
     });
     Object.defineProperty(navigator, "share", { configurable: true, value: share });
     Object.defineProperty(navigator, "canShare", { configurable: true, value: canShare });
 
+    localStorage.setItem(
+      "trapstand:datenbestand",
+      JSON.stringify({
+        runden: [
+          createRunde({
+            id: "runde-1",
+            rundenzeit: "2026-05-31T18:00",
+            schiessleiter: "Leiter",
+            schuetzenNamen: ["Anna"]
+          })
+        ]
+      })
+    );
     render(<App />);
 
+    await user.click(screen.getByRole("button", { name: /tag ausdrucken/i }));
     await user.click(screen.getByRole("button", { name: /^csv$/i }));
 
     await waitFor(() => expect(share).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: "trapstand-runden.csv",
-        files: [expect.objectContaining({ name: "trapstand-runden.csv", type: "text/plain" })]
+        title: "trapstand-2026-05-31.csv",
+        files: [expect.objectContaining({ name: "trapstand-2026-05-31.csv", type: "text/plain" })]
       })
     ));
     expect(canShare).toHaveBeenCalledWith(
       expect.objectContaining({
-        files: [expect.objectContaining({ name: "trapstand-runden.csv", type: "text/csv" })]
+        files: [expect.objectContaining({ name: "trapstand-2026-05-31.csv", type: "text/csv" })]
       })
     );
   });
@@ -870,10 +911,11 @@ describe("Trapstand app", () => {
     vi.useFakeTimers();
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /csv/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^einstellungen$/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /^backup$/i }));
     await act(async () => {});
 
-    expect(screen.getByRole("status")).toHaveTextContent(/csv-export vorbereitet/i);
+    expect(screen.getByRole("status")).toHaveTextContent(/backup-export vorbereitet/i);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(4000);

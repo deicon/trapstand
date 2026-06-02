@@ -98,6 +98,35 @@ input {
   gap: 0.5rem;
 }
 
+.settings-menu-wrap {
+  position: relative;
+}
+
+.settings-menu {
+  background: #ffffff;
+  border: 1px solid #9aa39f;
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(23, 34, 29, 0.18);
+  display: grid;
+  gap: 0.35rem;
+  min-width: 190px;
+  padding: 0.45rem;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  z-index: 20;
+}
+
+.settings-menu button,
+.settings-file-action {
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.settings-file-action {
+  min-height: 42px;
+}
+
 .file-action {
   align-items: center;
   background: #ffffff;

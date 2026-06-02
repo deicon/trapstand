@@ -60,11 +60,40 @@ describe("LocalDatenbestand", () => {
       schuetzenNamen: ["Bernd", "Claudia"]
     });
 
-    store.save(older);
-    store.save(newer);
+    store.save(completeRunde(older));
+    store.save(completeRunde(newer));
 
     expect(store.listSchuetzen().map((schuetze) => schuetze.name)).toEqual(["Bernd", "Claudia", "Anna"]);
     expect(store.listRecentSchuetzen(2).map((schuetze) => schuetze.name)).toEqual(["Bernd", "Claudia"]);
+  });
+
+  it("does not store partially typed shooter names from draft Runden globally", () => {
+    const store = new LocalDatenbestand("test-store");
+    const runde = createRunde({
+      id: "draft",
+      rundenzeit: "2026-05-30T10:00",
+      schiessleiter: "Dieter",
+      schuetzenNamen: ["D"]
+    });
+
+    store.save(runde);
+    store.save({ ...runde, rotte: runde.rotte.map((schuetze) => ({ ...schuetze, name: "Di" })) });
+    store.save({ ...runde, rotte: runde.rotte.map((schuetze) => ({ ...schuetze, name: "Die" })) });
+    store.save({ ...runde, rotte: runde.rotte.map((schuetze) => ({ ...schuetze, name: "Dieter" })) });
+
+    expect(store.listSchuetzen()).toEqual([]);
+
+    const completedRunde = {
+      ...runde,
+      rotte: runde.rotte.map((schuetze) => ({
+        ...schuetze,
+        name: "Dieter",
+        tauben: schuetze.tauben.map((taube) => ({ ...taube, status: "getroffen" as const }))
+      }))
+    };
+    store.save(completedRunde);
+
+    expect(store.listSchuetzen().map((schuetze) => schuetze.name)).toEqual(["Dieter"]);
   });
 
   it("migrates global Schuetzen from old data and deletes only the global Schuetze", () => {
@@ -86,3 +115,13 @@ describe("LocalDatenbestand", () => {
     expect(store.list()).toEqual([runde]);
   });
 });
+
+function completeRunde(runde: ReturnType<typeof createRunde>): ReturnType<typeof createRunde> {
+  return {
+    ...runde,
+    rotte: runde.rotte.map((schuetze) => ({
+      ...schuetze,
+      tauben: schuetze.tauben.map((taube) => ({ ...taube, status: "getroffen" as const }))
+    }))
+  };
+}
