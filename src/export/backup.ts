@@ -41,6 +41,7 @@ function isRunde(value: unknown): value is Runde {
     typeof value.schiessleiter === "string" &&
     (value.gesperrt === undefined || typeof value.gesperrt === "boolean") &&
     (value.sicherheitBestaetigt === undefined || typeof value.sicherheitBestaetigt === "boolean") &&
+    (value.geloescht === undefined || typeof value.geloescht === "boolean") &&
     (value.preise === undefined || isPreise(value.preise)) &&
     Array.isArray(value.rotte) &&
     value.rotte.length >= 1 &&
