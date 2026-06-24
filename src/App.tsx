@@ -33,7 +33,6 @@ export function App() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [view, setView] = useState<View>("list");
   const [message, setMessage] = useState("");
-  const [deleteCandidate, setDeleteCandidate] = useState<string | null>(null);
   const [printDay, setPrintDay] = useState<string | null>(null);
   const [paymentDay, setPaymentDay] = useState<string | null>(null);
   const [showMainSettings, setShowMainSettings] = useState(false);
@@ -120,14 +119,26 @@ export function App() {
     setMessage("Backup importiert.");
   }
 
-  function confirmDelete(id: string) {
-    store.delete(id);
-    setDeleteCandidate(null);
+  function softDeleteRunde(id: string) {
+    store.softDelete(id);
     if (activeId === id) {
       setActiveId(null);
       setView("list");
     }
     refreshRunden();
+    setMessage("Runde geloescht.");
+  }
+
+  function restoreRunde(id: string) {
+    store.restore(id);
+    refreshRunden();
+    setMessage("Runde wiederhergestellt.");
+  }
+
+  function permanentlyDeleteRunde(id: string) {
+    store.deletePermanent(id);
+    refreshRunden();
+    setMessage("Runde endgueltig geloescht.");
   }
 
   function deleteGlobalSchuetze(id: string) {
@@ -311,15 +322,12 @@ export function App() {
           <RundenListe
             runden={runden}
             preise={preise}
-            deleteCandidate={deleteCandidate}
             onOpen={(id) => {
               setEditorRecentSchuetzen(store.listRecentSchuetzen(20));
               setActiveId(id);
               setView("editor");
             }}
-            onAskDelete={setDeleteCandidate}
-            onConfirmDelete={confirmDelete}
-            onCancelDelete={() => setDeleteCandidate(null)}
+            onSoftDelete={softDeleteRunde}
             onPrintDay={(day) => {
               setPrintDay(day);
               setView("day-print");
@@ -377,17 +385,14 @@ function isSettings(value: unknown): value is AppSettings {
 interface RundenListeProps {
   runden: Runde[];
   preise: RundenPreise;
-  deleteCandidate: string | null;
   onOpen: (id: string) => void;
-  onAskDelete: (id: string) => void;
-  onConfirmDelete: (id: string) => void;
-  onCancelDelete: () => void;
+  onSoftDelete: (id: string) => void;
   onPrintDay: (day: string) => void;
   onPayDay: (day: string) => void;
   onPreiseChange: (preise: RundenPreise) => void;
 }
 
-function RundenListe({ runden, preise, deleteCandidate, onOpen, onAskDelete, onConfirmDelete, onCancelDelete, onPrintDay, onPayDay, onPreiseChange }: RundenListeProps) {
+function RundenListe({ runden, preise, onOpen, onSoftDelete, onPrintDay, onPayDay, onPreiseChange }: RundenListeProps) {
   const [showSettings, setShowSettings] = useState(false);
   const days = Array.from(new Set(runden.map(dayKey).filter(Boolean))).sort((a, b) => b.localeCompare(a));
   const [selectedDay, setSelectedDay] = useState(() => {
@@ -441,11 +446,8 @@ function RundenListe({ runden, preise, deleteCandidate, onOpen, onAskDelete, onC
                   <RundenListItem
                     key={runde.id}
                     runde={runde}
-                    deleteCandidate={deleteCandidate}
                     onOpen={onOpen}
-                    onAskDelete={onAskDelete}
-                    onConfirmDelete={onConfirmDelete}
-                    onCancelDelete={onCancelDelete}
+                    onSoftDelete={onSoftDelete}
                   />
                 ))}
               </ul>
@@ -500,14 +502,11 @@ function PreiseEditor({ preise, onChange }: { preise: RundenPreise; onChange: (p
 
 interface RundenListItemProps {
   runde: Runde;
-  deleteCandidate: string | null;
   onOpen: (id: string) => void;
-  onAskDelete: (id: string) => void;
-  onConfirmDelete: (id: string) => void;
-  onCancelDelete: () => void;
+  onSoftDelete: (id: string) => void;
 }
 
-function RundenListItem({ runde, deleteCandidate, onOpen, onAskDelete, onConfirmDelete, onCancelDelete }: RundenListItemProps) {
+function RundenListItem({ runde, onOpen, onSoftDelete }: RundenListItemProps) {
   const gaeste = runde.rotte.filter((schuetze) => schuetze.gaststatus).length;
   const offen = runde.rotte.filter((schuetze) => !schuetze.zahlungsstatus).length;
   const namen = runde.rotte.map((schuetze) => schuetze.name || "Unbenannt").join(", ");
@@ -524,14 +523,7 @@ function RundenListItem({ runde, deleteCandidate, onOpen, onAskDelete, onConfirm
           {formatGastCount(gaeste)} · {formatUnbezahltCount(offen)}
         </span>
       </button>
-      <button className="danger" onClick={() => onAskDelete(runde.id)}>Loeschen</button>
-      {deleteCandidate === runde.id && (
-        <div className="confirm-delete">
-          <span>Runde loeschen?</span>
-          <button className="danger" onClick={() => onConfirmDelete(runde.id)}>Wirklich loeschen</button>
-          <button onClick={onCancelDelete}>Abbrechen</button>
-        </div>
-      )}
+      <button className="danger" onClick={() => onSoftDelete(runde.id)}>Loeschen</button>
     </li>
   );
 }
