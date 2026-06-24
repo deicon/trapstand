@@ -32,6 +32,7 @@ export interface Runde {
   gesperrt?: boolean;
   sicherheitBestaetigt?: boolean;
   preise?: RundenPreise;
+  geloescht?: boolean;
   rotte: Schuetze[];
 }
 

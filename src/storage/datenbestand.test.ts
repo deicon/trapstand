@@ -28,7 +28,36 @@ describe("LocalDatenbestand", () => {
     expect(store.get("older")).toEqual(older);
   });
 
-  it("deletes Runden and replaces the complete Datenbestand", () => {
+  it("soft-deletes Runden, lists them separately and restores them", () => {
+    const store = new LocalDatenbestand("test-store");
+    const older = createRunde({
+      id: "older",
+      rundenzeit: "2026-05-30T10:00",
+      schiessleiter: "Dieter",
+      schuetzenNamen: ["Anna"]
+    });
+    const newer = createRunde({
+      id: "newer",
+      rundenzeit: "2026-05-30T12:00",
+      schiessleiter: "Dieter",
+      schuetzenNamen: ["Bernd"]
+    });
+
+    store.save(older);
+    store.save(newer);
+    store.softDelete("older");
+
+    expect(store.list().map((runde) => runde.id)).toEqual(["newer"]);
+    expect(store.listGeloescht().map((runde) => runde.id)).toEqual(["older"]);
+    expect(store.get("older")?.geloescht).toBe(true);
+
+    store.restore("older");
+
+    expect(store.list().map((runde) => runde.id)).toEqual(["newer", "older"]);
+    expect(store.listGeloescht()).toEqual([]);
+  });
+
+  it("permanently deletes Runden", () => {
     const store = new LocalDatenbestand("test-store");
     const runde = createRunde({
       id: "runde-1",
@@ -38,7 +67,24 @@ describe("LocalDatenbestand", () => {
     });
 
     store.save(runde);
-    store.delete("runde-1");
+    store.deletePermanent("runde-1");
+
+    expect(store.list()).toEqual([]);
+    expect(store.listGeloescht()).toEqual([]);
+    expect(store.get("runde-1")).toBeUndefined();
+  });
+
+  it("replaces the complete Datenbestand", () => {
+    const store = new LocalDatenbestand("test-store");
+    const runde = createRunde({
+      id: "runde-1",
+      rundenzeit: "2026-05-30T10:00",
+      schiessleiter: "Dieter",
+      schuetzenNamen: ["Anna"]
+    });
+
+    store.save(runde);
+    store.deletePermanent("runde-1");
     expect(store.list()).toEqual([]);
 
     store.replace({ runden: [runde] });

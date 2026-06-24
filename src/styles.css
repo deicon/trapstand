@@ -283,12 +283,24 @@ input {
   border-color: #d8b45f;
 }
 
-.confirm-delete {
+.trash-actions {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.permanent-delete-confirm {
+  align-items: end;
+  display: grid;
+  gap: 0.5rem;
   grid-column: 1 / -1;
+}
+
+.permanent-delete-confirm label {
+  display: grid;
+  gap: 0.3rem;
+  width: 100%;
 }
 
 .danger {

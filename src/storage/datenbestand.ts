@@ -5,7 +5,15 @@ export class LocalDatenbestand {
   constructor(private readonly key = "trapstand:datenbestand") {}
 
   list(): Runde[] {
-    return [...this.read().runden].sort((a, b) => b.rundenzeit.localeCompare(a.rundenzeit));
+    return this.read()
+      .runden.filter((runde) => !runde.geloescht)
+      .sort((a, b) => b.rundenzeit.localeCompare(a.rundenzeit));
+  }
+
+  listGeloescht(): Runde[] {
+    return this.read()
+      .runden.filter((runde) => runde.geloescht === true)
+      .sort((a, b) => b.rundenzeit.localeCompare(a.rundenzeit));
   }
 
   getPreise(): RundenPreise {
@@ -81,7 +89,21 @@ export class LocalDatenbestand {
     });
   }
 
-  delete(id: string): void {
+  softDelete(id: string): void {
+    const runde = this.get(id);
+    if (runde) {
+      this.save({ ...runde, geloescht: true });
+    }
+  }
+
+  restore(id: string): void {
+    const runde = this.get(id);
+    if (runde) {
+      this.save({ ...runde, geloescht: false });
+    }
+  }
+
+  deletePermanent(id: string): void {
     const datenbestand = this.read();
     this.write({ ...datenbestand, runden: datenbestand.runden.filter((runde) => runde.id !== id) });
   }

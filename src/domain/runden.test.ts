@@ -2,6 +2,7 @@ import {
   createRunde,
   hasRundeneintraege,
   isEntwurf,
+  isGeloescht,
   isVollstaendigeRunde,
   rundenStatus,
   setRundeGesperrt,
@@ -113,5 +114,18 @@ describe("Runden domain", () => {
     expect(rundenStatus(gesperrt)).toBe("gesperrt");
     expect(schuetzenErgebnis(gesperrt.rotte[0])).toBe(1);
     expect(setRundeGesperrt(gesperrt, false).gesperrt).toBe(false);
+  });
+
+  it("detects deleted Runden", () => {
+    const normal = createRunde({
+      id: "runde-1",
+      rundenzeit: "2026-05-30T14:00",
+      schiessleiter: "Dieter",
+      schuetzenNamen: ["Anna"]
+    });
+    expect(isGeloescht(normal)).toBe(false);
+
+    expect(isGeloescht({ ...normal, geloescht: true })).toBe(true);
+    expect(isGeloescht({ ...normal, geloescht: false })).toBe(false);
   });
 });

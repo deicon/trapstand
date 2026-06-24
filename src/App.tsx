@@ -19,7 +19,7 @@ import { refreshPwa } from "./pwa/refresh";
 import { LocalDatenbestand } from "./storage/datenbestand";
 import "./styles.css";
 
-type View = "list" | "editor" | "start-confirm" | "capture" | "print" | "day-print" | "schuetzen" | "rangliste";
+type View = "list" | "editor" | "start-confirm" | "capture" | "print" | "day-print" | "schuetzen" | "rangliste" | "papierkorb";
 type PrintMode = "einzelergebnisse" | "zusammenfassung";
 type CaptureCursor = { schuetzeId: string; taube: number };
 
@@ -27,13 +27,13 @@ const store = new LocalDatenbestand();
 
 export function App() {
   const [runden, setRunden] = useState<Runde[]>(() => store.list());
+  const [geloeschteRunden, setGeloeschteRunden] = useState<Runde[]>(() => store.listGeloescht());
   const [schuetzen, setSchuetzen] = useState<GespeicherterSchuetze[]>(() => store.listSchuetzen());
   const [editorRecentSchuetzen, setEditorRecentSchuetzen] = useState<GespeicherterSchuetze[]>([]);
   const [preise, setPreise] = useState<RundenPreise>(() => store.getPreise());
   const [activeId, setActiveId] = useState<string | null>(null);
   const [view, setView] = useState<View>("list");
   const [message, setMessage] = useState("");
-  const [deleteCandidate, setDeleteCandidate] = useState<string | null>(null);
   const [printDay, setPrintDay] = useState<string | null>(null);
   const [paymentDay, setPaymentDay] = useState<string | null>(null);
   const [showMainSettings, setShowMainSettings] = useState(false);
@@ -66,6 +66,7 @@ export function App() {
 
   function refreshRunden() {
     setRunden(store.list());
+    setGeloeschteRunden(store.listGeloescht());
     setSchuetzen(store.listSchuetzen());
     setPreise(store.getPreise());
   }
@@ -120,14 +121,26 @@ export function App() {
     setMessage("Backup importiert.");
   }
 
-  function confirmDelete(id: string) {
-    store.delete(id);
-    setDeleteCandidate(null);
+  function softDeleteRunde(id: string) {
+    store.softDelete(id);
     if (activeId === id) {
       setActiveId(null);
       setView("list");
     }
     refreshRunden();
+    setMessage("Runde geloescht.");
+  }
+
+  function restoreRunde(id: string) {
+    store.restore(id);
+    refreshRunden();
+    setMessage("Runde wiederhergestellt.");
+  }
+
+  function permanentlyDeleteRunde(id: string) {
+    store.deletePermanent(id);
+    refreshRunden();
+    setMessage("Runde endgueltig geloescht.");
   }
 
   function deleteGlobalSchuetze(id: string) {
@@ -232,6 +245,16 @@ export function App() {
                   role="menuitem"
                   onClick={() => {
                     setShowMainSettings(false);
+                    setActiveId(null);
+                    setView("papierkorb");
+                  }}
+                >
+                  Papierkorb
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setShowMainSettings(false);
                     void exportBackup();
                   }}
                 >
@@ -279,6 +302,13 @@ export function App() {
           schuetzen={schuetzen}
           onBack={() => setView("list")}
         />
+      ) : view === "papierkorb" ? (
+        <PapierkorbView
+          geloeschteRunden={geloeschteRunden}
+          onBack={() => setView("list")}
+          onRestore={restoreRunde}
+          onPermanentDelete={permanentlyDeleteRunde}
+        />
       ) : (view === "editor" || view === "start-confirm") && activeRunde ? (
         <>
           <RundenEditor
@@ -311,15 +341,12 @@ export function App() {
           <RundenListe
             runden={runden}
             preise={preise}
-            deleteCandidate={deleteCandidate}
             onOpen={(id) => {
               setEditorRecentSchuetzen(store.listRecentSchuetzen(20));
               setActiveId(id);
               setView("editor");
             }}
-            onAskDelete={setDeleteCandidate}
-            onConfirmDelete={confirmDelete}
-            onCancelDelete={() => setDeleteCandidate(null)}
+            onSoftDelete={softDeleteRunde}
             onPrintDay={(day) => {
               setPrintDay(day);
               setView("day-print");
@@ -377,17 +404,14 @@ function isSettings(value: unknown): value is AppSettings {
 interface RundenListeProps {
   runden: Runde[];
   preise: RundenPreise;
-  deleteCandidate: string | null;
   onOpen: (id: string) => void;
-  onAskDelete: (id: string) => void;
-  onConfirmDelete: (id: string) => void;
-  onCancelDelete: () => void;
+  onSoftDelete: (id: string) => void;
   onPrintDay: (day: string) => void;
   onPayDay: (day: string) => void;
   onPreiseChange: (preise: RundenPreise) => void;
 }
 
-function RundenListe({ runden, preise, deleteCandidate, onOpen, onAskDelete, onConfirmDelete, onCancelDelete, onPrintDay, onPayDay, onPreiseChange }: RundenListeProps) {
+function RundenListe({ runden, preise, onOpen, onSoftDelete, onPrintDay, onPayDay, onPreiseChange }: RundenListeProps) {
   const [showSettings, setShowSettings] = useState(false);
   const days = Array.from(new Set(runden.map(dayKey).filter(Boolean))).sort((a, b) => b.localeCompare(a));
   const [selectedDay, setSelectedDay] = useState(() => {
@@ -441,11 +465,8 @@ function RundenListe({ runden, preise, deleteCandidate, onOpen, onAskDelete, onC
                   <RundenListItem
                     key={runde.id}
                     runde={runde}
-                    deleteCandidate={deleteCandidate}
                     onOpen={onOpen}
-                    onAskDelete={onAskDelete}
-                    onConfirmDelete={onConfirmDelete}
-                    onCancelDelete={onCancelDelete}
+                    onSoftDelete={onSoftDelete}
                   />
                 ))}
               </ul>
@@ -500,14 +521,11 @@ function PreiseEditor({ preise, onChange }: { preise: RundenPreise; onChange: (p
 
 interface RundenListItemProps {
   runde: Runde;
-  deleteCandidate: string | null;
   onOpen: (id: string) => void;
-  onAskDelete: (id: string) => void;
-  onConfirmDelete: (id: string) => void;
-  onCancelDelete: () => void;
+  onSoftDelete: (id: string) => void;
 }
 
-function RundenListItem({ runde, deleteCandidate, onOpen, onAskDelete, onConfirmDelete, onCancelDelete }: RundenListItemProps) {
+function RundenListItem({ runde, onOpen, onSoftDelete }: RundenListItemProps) {
   const gaeste = runde.rotte.filter((schuetze) => schuetze.gaststatus).length;
   const offen = runde.rotte.filter((schuetze) => !schuetze.zahlungsstatus).length;
   const namen = runde.rotte.map((schuetze) => schuetze.name || "Unbenannt").join(", ");
@@ -524,14 +542,7 @@ function RundenListItem({ runde, deleteCandidate, onOpen, onAskDelete, onConfirm
           {formatGastCount(gaeste)} · {formatUnbezahltCount(offen)}
         </span>
       </button>
-      <button className="danger" onClick={() => onAskDelete(runde.id)}>Loeschen</button>
-      {deleteCandidate === runde.id && (
-        <div className="confirm-delete">
-          <span>Runde loeschen?</span>
-          <button className="danger" onClick={() => onConfirmDelete(runde.id)}>Wirklich loeschen</button>
-          <button onClick={onCancelDelete}>Abbrechen</button>
-        </div>
-      )}
+      <button className="danger" onClick={() => onSoftDelete(runde.id)}>Loeschen</button>
     </li>
   );
 }
@@ -592,6 +603,103 @@ function SchuetzenView({
             </li>
           ))}
         </ul>
+      )}
+    </section>
+  );
+}
+
+interface PapierkorbViewProps {
+  geloeschteRunden: Runde[];
+  onBack: () => void;
+  onRestore: (id: string) => void;
+  onPermanentDelete: (id: string) => void;
+}
+
+function PapierkorbView({ geloeschteRunden, onBack, onRestore, onPermanentDelete }: PapierkorbViewProps) {
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [confirmInput, setConfirmInput] = useState("");
+  const groupedRunden = groupRundenByDay(geloeschteRunden);
+
+  function startPermanentDelete(id: string) {
+    setPendingId(id);
+    setConfirmInput("");
+  }
+
+  function cancelPermanentDelete() {
+    setPendingId(null);
+    setConfirmInput("");
+  }
+
+  function confirmPermanentDelete() {
+    if (pendingId && confirmInput === "Loeschen") {
+      onPermanentDelete(pendingId);
+      setPendingId(null);
+      setConfirmInput("");
+    }
+  }
+
+  return (
+    <section className="panel">
+      <div className="section-header">
+        <h2>Papierkorb</h2>
+        <button onClick={onBack}>Zurück zur Liste</button>
+      </div>
+      {geloeschteRunden.length === 0 ? (
+        <p className="empty-state">Keine geloeschten Runden.</p>
+      ) : (
+        <div className="round-groups">
+          {groupedRunden.map((group) => (
+            <section key={group.key} className="round-group">
+              <h3>{group.label}</h3>
+              <ul className="round-list">
+                {group.runden.map((runde) => {
+                  const namen = runde.rotte.map((schuetze) => schuetze.name || "Unbenannt").join(", ");
+                  const isPending = pendingId === runde.id;
+                  return (
+                    <li key={runde.id} className="round-row">
+                      <div className="round-open" role="presentation">
+                        <strong>{namen}</strong>
+                        <span>{formatRundenzeit(runde.rundenzeit)} · {runde.schiessleiter || "Schießleiter offen"}</span>
+                      </div>
+                      <div className="trash-actions">
+                        <button onClick={() => onRestore(runde.id)}>Wiederherstellen</button>
+                        <button
+                          className="danger"
+                          aria-label="Runde endgueltig loeschen"
+                          onClick={() => startPermanentDelete(runde.id)}
+                        >
+                          Endgueltig loeschen
+                        </button>
+                      </div>
+                      {isPending && (
+                        <div className="permanent-delete-confirm">
+                          <label>
+                            Wirklich löschen?
+                            <input
+                              aria-label="Zum Bestaetigen Loeschen eingeben"
+                              placeholder="Loeschen"
+                              value={confirmInput}
+                              onChange={(event) => setConfirmInput(event.target.value)}
+                            />
+                          </label>
+                          <button
+                            className="danger"
+                            aria-label="Runde endgueltig loeschen bestaetigen"
+                            disabled={confirmInput !== "Loeschen"}
+                            onClick={confirmPermanentDelete}
+                          >
+                            Endgueltig loeschen
+                          </button>
+                          <button onClick={cancelPermanentDelete}>Abbrechen</button>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+        </div>
       )}
     </section>
   );
