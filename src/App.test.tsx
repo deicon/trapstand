@@ -19,6 +19,18 @@ async function startRunde(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: /^ok$/i }));
 }
 
+async function createBerndRunde(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: /neue runde/i }));
+  await user.type(screen.getByLabelText(/schie(?:ß|ss)leiter/i), "Leiter");
+  await user.clear(screen.getByLabelText(/name schuetze 1/i));
+  await user.type(screen.getByLabelText(/name schuetze 1/i), "Bernd");
+  await startRunde(user);
+  const berndRow = screen.getByRole("row", { name: /bernd/i });
+  await user.click(within(berndRow).getByRole("button", { name: /taube 1 als treffer markieren/i }));
+  await user.click(screen.getByRole("button", { name: /runde beenden/i }));
+  await user.click(screen.getByRole("button", { name: /zurueck zur liste/i }));
+}
+
 describe("Trapstand app", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -122,6 +134,7 @@ describe("Trapstand app", () => {
     expect(screen.queryByRole("button", { name: /^schützen$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^csv$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^backup$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^papierkorb$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /aktualisieren/i })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /^einstellungen$/i }));
@@ -129,6 +142,7 @@ describe("Trapstand app", () => {
     expect(screen.getByRole("menu")).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /^schützen$/i })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /^backup$/i })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /^papierkorb$/i })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /aktualisieren/i })).toBeInTheDocument();
     expect(screen.getByText(/^import$/i)).toBeInTheDocument();
   });
@@ -548,7 +562,7 @@ describe("Trapstand app", () => {
     expect(refreshPwa).toHaveBeenCalledTimes(1);
   });
 
-  it("shows Druckansicht, exports selected day as CSV and deletes a Runde after confirmation", async () => {
+  it("shows Druckansicht, exports selected day as CSV and soft-deletes a Runde", async () => {
     const user = userEvent.setup();
     render(<App />);
 
@@ -574,9 +588,110 @@ describe("Trapstand app", () => {
     expect(screen.getByRole("status")).toHaveTextContent(/csv-export vorbereitet/i);
 
     const row = screen.getByRole("listitem");
-    await user.click(within(row).getByRole("button", { name: /loeschen/i }));
-    await user.click(screen.getByRole("button", { name: /wirklich loeschen/i }));
+    await user.click(within(row).getByRole("button", { name: /l[oö]eschen/i }));
     expect(screen.getByText(/keine runden/i)).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(/Runde geloescht./i);
+
+    await user.click(screen.getByRole("button", { name: /^einstellungen$/i }));
+    await user.click(screen.getByRole("menuitem", { name: /^papierkorb$/i }));
+    expect(screen.getByRole("heading", { name: /^papierkorb$/i })).toBeInTheDocument();
+    expect(screen.getByText(/bernd/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /zur(ue|ü)ck zur liste/i }));
+    expect(screen.queryByRole("heading", { name: /^papierkorb$/i })).not.toBeInTheDocument();
+  });
+
+  it("soft-deleted Runde appears in Papierkorb and can be restored", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await createBerndRunde(user);
+    expect(screen.getByText(/bernd/i)).toBeInTheDocument();
+
+    const row = screen.getByRole("listitem");
+    await user.click(within(row).getByRole("button", { name: /l[oö]eschen/i }));
+    expect(screen.queryByText(/bernd/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(/Runde geloescht./i);
+
+    await user.click(screen.getByRole("button", { name: /^einstellungen$/i }));
+    await user.click(screen.getByRole("menuitem", { name: /^papierkorb$/i }));
+    expect(screen.getByRole("heading", { name: /^papierkorb$/i })).toBeInTheDocument();
+    expect(screen.getByText(/bernd/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /wiederherstellen/i }));
+    expect(screen.queryByText(/bernd/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(/Runde wiederhergestellt./i);
+  });
+
+  it("restoring a Runde returns it to the list", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await createBerndRunde(user);
+    const row = screen.getByRole("listitem");
+    await user.click(within(row).getByRole("button", { name: /l[oö]eschen/i }));
+
+    await user.click(screen.getByRole("button", { name: /^einstellungen$/i }));
+    await user.click(screen.getByRole("menuitem", { name: /^papierkorb$/i }));
+    expect(screen.getByText(/bernd/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /wiederherstellen/i }));
+    expect(screen.getByRole("status")).toHaveTextContent(/Runde wiederhergestellt./i);
+
+    await user.click(screen.getByRole("button", { name: /zur(ue|ü)ck zur liste/i }));
+    expect(screen.getByText(/bernd/i)).toBeInTheDocument();
+  });
+
+  it("permanent delete requires typed confirmation and removes the Runde", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await createBerndRunde(user);
+    const row = screen.getByRole("listitem");
+    await user.click(within(row).getByRole("button", { name: /l[oö]eschen/i }));
+
+    await user.click(screen.getByRole("button", { name: /^einstellungen$/i }));
+    await user.click(screen.getByRole("menuitem", { name: /^papierkorb$/i }));
+    expect(screen.getByText(/bernd/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /runde endgueltig loeschen/i }));
+    const confirmInput = screen.getByRole("textbox", { name: /zum bestaetigen loeschen eingeben/i });
+    await user.clear(confirmInput);
+    await user.type(confirmInput, "Löschen");
+    expect(screen.getByRole("button", { name: /runde endgueltig loeschen bestaetigen/i })).toBeDisabled();
+
+    await user.clear(confirmInput);
+    await user.type(confirmInput, "Loeschen");
+    await user.click(screen.getByRole("button", { name: /runde endgueltig loeschen bestaetigen/i }));
+    expect(screen.getByText(/keine geloeschten runden/i)).toBeInTheDocument();
+    expect(screen.queryByText(/bernd/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(/Runde endgueltig geloescht./i);
+  });
+
+  it("canceling permanent delete keeps the Runde in Papierkorb", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await createBerndRunde(user);
+    const row = screen.getByRole("listitem");
+    await user.click(within(row).getByRole("button", { name: /l[oö]eschen/i }));
+
+    await user.click(screen.getByRole("button", { name: /^einstellungen$/i }));
+    await user.click(screen.getByRole("menuitem", { name: /^papierkorb$/i }));
+    expect(screen.getByText(/bernd/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /runde endgueltig loeschen/i }));
+    let confirmInput = screen.getByRole("textbox", { name: /zum bestaetigen loeschen eingeben/i });
+    await user.clear(confirmInput);
+    await user.type(confirmInput, "Anderer Text");
+    await user.click(screen.getByRole("button", { name: /abbrechen/i }));
+    expect(screen.getByText(/bernd/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /runde endgueltig loeschen/i }));
+    confirmInput = screen.getByRole("textbox", { name: /zum bestaetigen loeschen eingeben/i });
+    await user.clear(confirmInput);
+    await user.click(screen.getByRole("button", { name: /abbrechen/i }));
+    expect(screen.getByText(/bernd/i)).toBeInTheDocument();
   });
 
   it("locks Schuetzen add and remove after the first Rundeneintrag", async () => {
