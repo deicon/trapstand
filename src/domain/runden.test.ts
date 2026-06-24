@@ -116,7 +116,7 @@ describe("Runden domain", () => {
     expect(setRundeGesperrt(gesperrt, false).gesperrt).toBe(false);
   });
 
-  it("detects geloescht via isGeloescht", () => {
+  it("detects deleted Runden", () => {
     const normal = createRunde({
       id: "runde-1",
       rundenzeit: "2026-05-30T14:00",

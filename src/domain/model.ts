@@ -31,8 +31,8 @@ export interface Runde {
   schiessleiter: string;
   gesperrt?: boolean;
   sicherheitBestaetigt?: boolean;
-  geloescht?: boolean;
   preise?: RundenPreise;
+  geloescht?: boolean;
   rotte: Schuetze[];
 }
 

@@ -147,15 +147,15 @@ export function isVollstaendigeRunde(runde: Runde): boolean {
   return hasPflichtdaten && hasNoOffeneTauben;
 }
 
+export function isGeloescht(runde: Runde): boolean {
+  return runde.geloescht === true;
+}
+
 export function rundenStatus(runde: Runde): RundenStatus {
   if (runde.gesperrt) {
     return "gesperrt";
   }
   return isVollstaendigeRunde(runde) ? "vollstaendig" : "entwurf";
-}
-
-export function isGeloescht(runde: Runde): boolean {
-  return runde.geloescht === true;
 }
 
 export function toLocalDateTimeInputValue(date: Date): string {
