@@ -154,6 +154,10 @@ export function rundenStatus(runde: Runde): RundenStatus {
   return isVollstaendigeRunde(runde) ? "vollstaendig" : "entwurf";
 }
 
+export function isGeloescht(runde: Runde): boolean {
+  return runde.geloescht === true;
+}
+
 export function toLocalDateTimeInputValue(date: Date): string {
   const pad = (value: number) => String(value).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(
