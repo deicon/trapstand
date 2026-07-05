@@ -38,8 +38,9 @@ export interface Schuetze {
 }
 ```
 
-- `kostenlos` ist im Datenmodell optional, damit bestehende Backups ohne Migration importiert werden können.
+- `kostenlos` ist im Domain-Modell ein Pflichtfeld (`boolean`).
 - `createSchuetze` setzt `kostenlos: false`.
+- Für Backup-Kompatibilität ist `kostenlos` im Backup-Format optional; der Import normalisiert fehlende Werte zu `false`.
 - `GespeicherterSchuetze` bleibt unverändert; "Kostenlos" ist eine Eigenschaft der konkreten Runde, nicht der Person.
 
 ## Domänenlogik
@@ -65,6 +66,7 @@ export interface Schuetze {
 - `getEingenommenCent(runde)` und `getRundengeld(runde)` ignorieren kostenlose Schützen.
 - `getDayPaymentShooters(runden)` zeigt kostenlose Schützen mit Betrag `0` und einem Badge "Kostenlos", aber nicht als "unbezahlt".
 - In der Rundenliste zählt "X unbezahlt" kostenlose Schützen nicht mit.
+- In importierten oder veralteten Daten kann theoretisch `kostenlos: true` und `zahlungsstatus: true` gleichzeitig vorkommen. In diesem Fall gilt `kostenlos` als stärker; `zahlungsstatus` wird ignoriert. Die UI erzwingt gegenseitigen Ausschluss bei neuen Eingaben.
 
 ## UI-Anpassungen
 
@@ -136,6 +138,14 @@ export interface Schuetze {
 ### UI
 
 - Beim Anlegen einer Runde mit bekanntem Schießleiter als Schütze ist `kostenlos` vorausgewählt.
+
+### Datumsformat
+
+- `formatRundenzeitDeutsch`:
+  - Leerer Wert → `"Rundenzeit offen"`.
+  - `"2026-04-23T09:30"` → `"23.04.2026 09:30"`.
+  - `"2026-04-23"` → `"23.04.2026"`.
+- Druckansicht zeigt die Rundenzeit im deutschen Format.
 
 ### Backup
 
