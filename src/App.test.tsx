@@ -948,7 +948,7 @@ describe("Trapstand app", () => {
     await user.click(screen.getByRole("checkbox", { name: /bernd bezahlt/i }));
     await user.click(screen.getByRole("button", { name: /schliessen/i }));
 
-    await user.click(screen.getByRole("button", { name: /bernd.*2026-05-31 20:00/i }));
+    await user.click(screen.getByRole("button", { name: /bernd.*31.05.2026 20:00/i }));
     expect(screen.getByRole("checkbox", { name: /bernd hat bezahlt/i })).not.toBeDisabled();
     expect(screen.getByRole("checkbox", { name: /bernd hat bezahlt/i })).toBeChecked();
 

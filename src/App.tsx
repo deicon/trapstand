@@ -6,6 +6,7 @@ import {
   cumulativeErgebnisse,
   dayKey,
   ensureSchiessleiterFreirunde,
+  formatRundenzeitDeutsch,
   getRundenPreise,
   getSchuetzenPreisCent,
   hasRundeneintraege,
@@ -539,7 +540,7 @@ function RundenListItem({ runde, onOpen, onSoftDelete }: RundenListItemProps) {
     <li className="round-row">
       <button className="round-open" onClick={() => onOpen(runde.id)}>
         <strong>{namen}</strong>
-        <span>{formatRundenzeit(runde.rundenzeit)} · {runde.schiessleiter || "Schießleiter offen"}</span>
+        <span>{formatRundenzeitDeutsch(runde.rundenzeit)} · {runde.schiessleiter || "Schießleiter offen"}</span>
         <span>
           {statusLabel && <span className={runde.gesperrt ? "round-badge round-badge-locked" : "round-badge"}>{statusLabel}</span>}
           {statusLabel ? " · " : ""}
@@ -663,7 +664,7 @@ function PapierkorbView({ geloeschteRunden, onBack, onRestore, onPermanentDelete
                     <li key={runde.id} className="round-row">
                       <div className="round-open" role="presentation">
                         <strong>{namen}</strong>
-                        <span>{formatRundenzeit(runde.rundenzeit)} · {runde.schiessleiter || "Schießleiter offen"}</span>
+                        <span>{formatRundenzeitDeutsch(runde.rundenzeit)} · {runde.schiessleiter || "Schießleiter offen"}</span>
                       </div>
                       <div className="trash-actions">
                         <button onClick={() => onRestore(runde.id)}>Wiederherstellen</button>
@@ -1824,7 +1825,7 @@ function PrintView({ runden, onBack, onExportCsv }: { runden: Runde[]; onBack: (
             const rundengeld = getRundengeld(runde);
             return (
               <>
-          <p>{formatRundenzeit(runde.rundenzeit)} · Schießleiter: {runde.schiessleiter}</p>
+          <p>{formatRundenzeitDeutsch(runde.rundenzeit)} · Schießleiter: {runde.schiessleiter}</p>
           {mode === "einzelergebnisse" ? <PrintEinzelergebnisse runde={runde} /> : <PrintZusammenfassung runde={runde} />}
           <p className="print-money">
             Rundengeld: Mitglieder {formatMoney(rundengeld.mitgliederCent)} · Gäste {formatMoney(rundengeld.gaesteCent)} · Gesamt {formatMoney(rundengeld.gesamtCent)}
@@ -1900,13 +1901,6 @@ function PrintZusammenfassung({ runde }: { runde: Runde }) {
       </tbody>
     </table>
   );
-}
-
-function formatRundenzeit(value: string): string {
-  if (!value) {
-    return "Rundenzeit offen";
-  }
-  return value.replace("T", " ");
 }
 
 async function downloadOrShare(filename: string, content: string, type: string) {

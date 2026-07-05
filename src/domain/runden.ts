@@ -190,6 +190,17 @@ export function dayKey(runde: Runde): string {
   return runde.rundenzeit.slice(0, 10);
 }
 
+export function formatRundenzeitDeutsch(value: string): string {
+  if (!value) {
+    return "Rundenzeit offen";
+  }
+
+  const [datePart, timePart] = value.split("T");
+  const [year, month, day] = datePart.split("-");
+  const germanDate = `${day}.${month}.${year}`;
+  return timePart ? `${germanDate} ${timePart.slice(0, 5)}` : germanDate;
+}
+
 export function hatSchuetzeKostenloseRundeAmTag(
   runden: Runde[],
   name: string,

@@ -2,6 +2,7 @@ import {
   createRunde,
   createSchuetze,
   ensureSchiessleiterFreirunde,
+  formatRundenzeitDeutsch,
   getSchuetzenPreisCent,
   hatSchuetzeKostenloseRundeAmTag,
   hasRundeneintraege,
@@ -280,5 +281,19 @@ describe("getSchuetzenPreisCent", () => {
       kostenlos: true
     });
     expect(getSchuetzenPreisCent(withGastAndKostenlos, withGastAndKostenlos.rotte[0])).toBe(0);
+  });
+});
+
+describe("formatRundenzeitDeutsch", () => {
+  it("returns fallback for empty value", () => {
+    expect(formatRundenzeitDeutsch("")).toBe("Rundenzeit offen");
+  });
+
+  it("formats datetime to german format", () => {
+    expect(formatRundenzeitDeutsch("2026-04-23T09:30")).toBe("23.04.2026 09:30");
+  });
+
+  it("formats date-only to german format", () => {
+    expect(formatRundenzeitDeutsch("2026-04-23")).toBe("23.04.2026");
   });
 });
