@@ -160,6 +160,35 @@ describe("LocalDatenbestand", () => {
     expect(store.listSchuetzen()).toEqual([]);
     expect(store.list()).toEqual([runde]);
   });
+
+  it("defaults missing kostenlos to false when reading from localStorage", () => {
+    const raw = JSON.stringify({
+      runden: [
+        {
+          id: "r1",
+          rundenzeit: "2026-04-23T09:00",
+          schiessleiter: "Leo",
+          rotte: [
+            {
+              id: "s1",
+              name: "Max",
+              gaststatus: false,
+              zahlungsstatus: false,
+              tauben: Array.from({ length: 25 }, (_, i) => ({
+                nummer: i + 1,
+                status: "offen"
+              }))
+            }
+          ]
+        }
+      ]
+    });
+
+    localStorage.setItem("test-store", raw);
+    const store = new LocalDatenbestand("test-store");
+    const runde = store.get("r1")!;
+    expect(runde.rotte[0].kostenlos).toBe(false);
+  });
 });
 
 function completeRunde(runde: ReturnType<typeof createRunde>): ReturnType<typeof createRunde> {
