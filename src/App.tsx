@@ -5,6 +5,7 @@ import {
   addSchuetze,
   createEntwurf,
   cumulativeErgebnisse,
+  dayKey,
   hasRundeneintraege,
   removeSchuetze,
   rundenStatus,
@@ -943,10 +944,6 @@ function groupRundenByDay(runden: Runde[]): Array<{ key: string; label: string; 
 
 function sortRundenNewestFirst(runden: Runde[]): Runde[] {
   return [...runden].sort((a, b) => b.rundenzeit.localeCompare(a.rundenzeit));
-}
-
-function dayKey(runde: Runde): string {
-  return runde.rundenzeit.slice(0, 10);
 }
 
 function todayKey(): string {

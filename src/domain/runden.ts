@@ -165,3 +165,59 @@ export function toLocalDateTimeInputValue(date: Date): string {
     date.getMinutes()
   )}`;
 }
+
+export function isKostenlos(schuetze: Schuetze): boolean {
+  return schuetze.kostenlos ?? false;
+}
+
+export function schuetzeIstZahlungspflichtig(schuetze: Schuetze): boolean {
+  return !isKostenlos(schuetze);
+}
+
+export function dayKey(runde: Runde): string {
+  return runde.rundenzeit.slice(0, 10);
+}
+
+export function hatSchuetzeKostenloseRundeAmTag(
+  runden: Runde[],
+  name: string,
+  tag: string
+): boolean {
+  const normalizedName = name.trim().toLocaleLowerCase();
+  return runden.some(
+    (runde) =>
+      dayKey(runde) === tag &&
+      runde.rotte.some(
+        (schuetze) =>
+          schuetze.name.trim().toLocaleLowerCase() === normalizedName &&
+          isKostenlos(schuetze)
+      )
+  );
+}
+
+// Sets the schiessleiter's kostenlos flag when they are in the rotte and have
+// no other kostenlos round on the same day. Per spec, this only sets the flag
+// and never clears existing kostenlos flags, so manual overrides are respected.
+export function ensureSchiessleiterFreirunde(runde: Runde, alleRunden: Runde[]): Runde {
+  const schiessleiter = runde.schiessleiter.trim();
+  if (!schiessleiter) {
+    return runde;
+  }
+
+  const tag = dayKey(runde);
+  const andereRunden = alleRunden.filter((andere) => andere.id !== runde.id);
+  if (hatSchuetzeKostenloseRundeAmTag(andereRunden, schiessleiter, tag)) {
+    return runde;
+  }
+
+  const normalizedSchiessleiter = schiessleiter.toLocaleLowerCase();
+  const schiessleiterInRotte = runde.rotte.find(
+    (schuetze) => schuetze.name.trim().toLocaleLowerCase() === normalizedSchiessleiter
+  );
+
+  if (!schiessleiterInRotte) {
+    return runde;
+  }
+
+  return updateSchuetze(runde, schiessleiterInRotte.id, { kostenlos: true });
+}
