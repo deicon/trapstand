@@ -9,6 +9,7 @@ import {
   getRundenPreise,
   getSchuetzenPreisCent,
   hasRundeneintraege,
+  isKostenlos,
   removeSchuetze,
   rundenStatus,
   schuetzenErgebnis,
@@ -1429,22 +1430,27 @@ function DayPaymentDialog({ day, runden, onTogglePaid, onClose }: DayPaymentDial
           <div className="empty-state">Keine Schuetzen fuer diesen Tag.</div>
         ) : (
           <div className="payment-list">
-            {shooters.map((schuetze) => (
-              <label key={schuetze.name} className="payment-row">
-                <input
-                  type="checkbox"
-                  aria-label={`${schuetze.name} bezahlt`}
-                  checked={schuetze.paid}
-                  onChange={(event) => onTogglePaid(schuetze.name, event.target.checked)}
-                />
-                <span className="payment-person">
-                  <span className="payment-name">{schuetze.name}</span>
-                  {schuetze.gaststatus && <span className="round-badge">Gast</span>}
-                </span>
-                <span className="payment-rounds">{formatRoundCount(schuetze.roundCount)}</span>
-                <span className="payment-amount">{formatMoney(schuetze.amountCent)}</span>
-              </label>
-            ))}
+            {shooters.map((schuetze) => {
+              const isKostenlosShooter = schuetze.amountCent === 0 && schuetze.roundCount === 0;
+              return (
+                <label key={schuetze.name} className={`payment-row${isKostenlosShooter ? " payment-row-kostenlos" : ""}`}>
+                  <input
+                    type="checkbox"
+                    aria-label={`${schuetze.name} bezahlt`}
+                    checked={schuetze.paid}
+                    disabled={isKostenlosShooter}
+                    onChange={(event) => onTogglePaid(schuetze.name, event.target.checked)}
+                  />
+                  <span className="payment-person">
+                    <span className="payment-name">{schuetze.name}</span>
+                    {schuetze.gaststatus && <span className="round-badge">Gast</span>}
+                    {isKostenlosShooter && <span className="round-badge">Kostenlos</span>}
+                  </span>
+                  <span className="payment-rounds">{formatRoundCount(schuetze.roundCount)}</span>
+                  <span className="payment-amount">{formatMoney(schuetze.amountCent)}</span>
+                </label>
+              );
+            })}
             <div className="payment-total">
               <span>Summe</span>
               <span>{formatMoney(totalAmountCent)}</span>
@@ -1474,6 +1480,18 @@ function getDayPaymentShooters(runden: Runde[]): DayPaymentShooter[] {
     for (const schuetze of runde.rotte) {
       const name = schuetze.name.trim();
       if (!name) {
+        continue;
+      }
+
+      if (isKostenlos(schuetze)) {
+        const current = shooters.get(name);
+        shooters.set(name, {
+          name,
+          roundCount: current?.roundCount ?? 0,
+          gaststatus: Boolean(current?.gaststatus || schuetze.gaststatus),
+          paid: current ? current.paid : true,
+          amountCent: current?.amountCent ?? 0
+        });
         continue;
       }
 

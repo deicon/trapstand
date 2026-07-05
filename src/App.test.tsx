@@ -1121,3 +1121,37 @@ describe("RundenListe kostenlos", () => {
     expect(screen.getByText(/0 unbezahlt/i)).toBeInTheDocument();
   });
 });
+
+describe("DayPaymentDialog kostenlos", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    localStorage.clear();
+  });
+
+  it("shows kostenlos shooter with zero amount and disabled checkbox", () => {
+    const store = new LocalDatenbestand();
+    let runde = createRunde({
+      id: "r1",
+      rundenzeit: "2026-07-05T10:00",
+      schiessleiter: "Leiter",
+      schuetzenNamen: ["Bernd"]
+    });
+    runde = {
+      ...runde,
+      rotte: runde.rotte.map((schuetze) => ({
+        ...schuetze,
+        kostenlos: true,
+        tauben: schuetze.tauben.map((taube) => ({ ...taube, status: "getroffen" as const }))
+      }))
+    };
+    store.save(runde);
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /bezahlen/i }));
+
+    const berndRow = screen.getByRole("checkbox", { name: /bernd bezahlt/i }).closest("label")!;
+    expect(within(berndRow).getByText(/0,00 €/i)).toBeInTheDocument();
+    expect(within(berndRow).getByText(/kostenlos/i)).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /bernd bezahlt/i })).toBeDisabled();
+  });
+});
