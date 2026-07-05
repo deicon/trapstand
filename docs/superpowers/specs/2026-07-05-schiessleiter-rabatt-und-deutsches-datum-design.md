@@ -84,8 +84,9 @@ export interface Schuetze {
 
 ### Bezahlen-Dialog
 
-- Kostenlose Schützen erscheinen mit Betrag `0,00 €` und Badge "Kostenlos".
-- Ihre "Bezahlt"-Checkbox ist deaktiviert; ein Klick auf die Zeile hat keine Wirkung.
+- `getDayPaymentShooters` aggregiert pro Schütze nur die **zahlungspflichtigen** Runden (alle nicht-`kostenlos`-Runden).
+- Kostenlose Runden fließen nicht in `roundCount`, Betrag oder Bezahlt-Status ein.
+- Kostenlose Schützen (nur kostenlose Runden an diesem Tag) erscheinen mit Betrag `0,00 €` und Badge "Kostenlos"; ihre "Bezahlt"-Checkbox ist deaktiviert.
 - Sie fließen nicht in die offenen Posten oder die Tagessumme ein.
 
 ### Druckansicht
@@ -102,11 +103,12 @@ export interface Schuetze {
 - Spalte `zahlungsstatus` bleibt erhalten.
 - `rundenzeit` bleibt im ISO-Format `YYYY-MM-DDTHH:MM`.
 
-### Backup
+### Backup & localStorage
 
 - `kostenlos` ist im Backup-Format optional.
 - `isSchuetze` in `src/export/backup.ts` akzeptiert fehlendes `kostenlos`.
 - `importBackupJson` normalisiert jeden Schützen mit fehlendem `kostenlos` zu `kostenlos: false`, bevor die Daten in die App gelangen.
+- `LocalDatenbestand.read()` normalisiert ebenfalls fehlendes `kostenlos` auf `false`, damit bereits gespeicherte Runden aus `localStorage` korrekt dargestellt werden.
 - Keine Backup-Versionsänderung nötig.
 
 ## Datumsformat
@@ -127,6 +129,8 @@ export interface Schuetze {
 - `src/export/export.test.ts`
 - `src/export/backup.ts`
 - `src/export/backup.test.ts`
+- `src/storage/datenbestand.ts`
+- `src/storage/datenbestand.test.ts`
 
 ## Tests
 
