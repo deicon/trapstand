@@ -20,7 +20,7 @@ Das Feature fügt zwei Erweiterungen hinzu:
 |-------|--------------|
 | Separate Markierung für "kostenlos"? | Ja. "Kostenlos" ist ein eigenes Flag, damit es auf dem Ausdruck nicht als "nicht bezahlt" erscheint und der Betrag nicht in der Tagessumme auftaucht. |
 | Wie kommt der Schießleiter in die Rotte? | Er erscheint in den Schützen-Vorschlägen und wird manuell hinzugefügt. |
-| Wann greift die Auto-Markierung? | Beim Erstellen einer Runde und beim Ändern eines Schützennamens auf den Schießleiter. Manuell ist sie danach überschreibbar. |
+| Wann greift die Auto-Markierung? | Wenn ein Schütze in der Rotte auf den Namen des Schießleiters gesetzt wird (Eingabe oder Auswahl aus Vorschlägen) und an diesem Tag noch keine kostenlose Runde für ihn existiert. Danach ist sie manuell überschreibbar. |
 | Datumsformat im CSV? | CSV bleibt maschinenlesbar im ISO-Format `YYYY-MM-DDTHH:MM`. |
 
 ## Datenmodell
@@ -54,8 +54,8 @@ export interface Schuetze {
 
 ### Automatik-Regel für die Freirunde
 
-1. Beim **Erstellen einer neuen Runde** wird `ensureSchiessleiterFreirunde` aufgerufen.
-2. Beim **Ändern eines Schützennamens** im Editor wird geprüft, ob der neue Name dem Schießleiter entspricht; falls ja und die Freirunde für den Tag noch offen ist, wird `kostenlos` automatisch gesetzt.
+1. Wenn im Editor ein Schützenname auf den Namen des Schießleiters gesetzt wird (durch Eingabe oder Auswahl aus den Vorschlägen), wird geprüft, ob dieser Schütze an diesem Tag bereits eine kostenlose Runde hat.
+2. Falls nicht, wird `kostenlos` für diesen Schützen in der aktuellen Runde auf `true` gesetzt.
 3. Bereits gesetzte `kostenlos`-Markierungen werden **nicht automatisch entfernt**, um manuelle Eingriffe zu respektieren.
 
 ### Zahlungslogik
@@ -75,6 +75,7 @@ export interface Schuetze {
 - Neue Spalte **"Kostenlos"** neben "Gast" und "Bezahlt".
 - "Kostenlos" und "Bezahlt" schließen sich gegenseitig aus: ist "Kostenlos" gesetzt, wird "Bezahlt" deaktiviert und enthakt.
 - Die Schützen-Vorschläge enthalten zukünftig auch die Namen bisheriger Schießleiter, damit der Schießleiter leicht als Schütze hinzugefügt werden kann.
+- Wird ein Schießleiter über die Vorschläge als Schütze hinzugefügt, erhält er denselben `gaststatus` wie ein gleichnamiger globaler Schütze (falls vorhanden); ansonsten `gaststatus: false`.
 
 ### Rundenliste
 
@@ -84,6 +85,7 @@ export interface Schuetze {
 ### Bezahlen-Dialog
 
 - Kostenlose Schützen erscheinen mit Betrag `0,00 €` und Badge "Kostenlos".
+- Ihre "Bezahlt"-Checkbox ist deaktiviert; ein Klick auf die Zeile hat keine Wirkung.
 - Sie fließen nicht in die offenen Posten oder die Tagessumme ein.
 
 ### Druckansicht
@@ -102,8 +104,9 @@ export interface Schuetze {
 
 ### Backup
 
-- `kostenlos` ist ein optionales Feld in `Schuetze`.
-- Backup-Validierung akzeptiert sowohl alte Backups ohne `kostenlos` (default `false`) als auch neue mit dem Feld.
+- `kostenlos` ist im Backup-Format optional.
+- `isSchuetze` in `src/export/backup.ts` akzeptiert fehlendes `kostenlos`.
+- `importBackupJson` normalisiert jeden Schützen mit fehlendem `kostenlos` zu `kostenlos: false`, bevor die Daten in die App gelangen.
 - Keine Backup-Versionsänderung nötig.
 
 ## Datumsformat
@@ -137,7 +140,7 @@ export interface Schuetze {
 
 ### UI
 
-- Beim Anlegen einer Runde mit bekanntem Schießleiter als Schütze ist `kostenlos` vorausgewählt.
+- Wird der Schießleiter als Schütze in eine Runde eingetragen (Eingabe oder Auswahl aus Vorschlägen), ist die Checkbox "Kostenlos" vorausgewählt, sofern er an diesem Tag noch keine kostenlose Runde hat.
 
 ### Datumsformat
 
