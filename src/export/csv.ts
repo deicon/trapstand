@@ -9,6 +9,7 @@ export function exportRundenCsv(runden: Runde[]): string {
     "schuetze",
     "gaststatus",
     "zahlungsstatus",
+    "kostenlos",
     "ergebnis",
     ...Array.from({ length: 25 }, (_, index) => `taube_${index + 1}`)
   ];
@@ -21,6 +22,7 @@ export function exportRundenCsv(runden: Runde[]): string {
       schuetze.name,
       schuetze.gaststatus ? "ja" : "nein",
       schuetze.zahlungsstatus ? "ja" : "nein",
+      schuetze.kostenlos ? "ja" : "nein",
       String(schuetzenErgebnis(schuetze)),
       ...schuetze.tauben.map((taube) => taube.status)
     ])
