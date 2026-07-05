@@ -1,0 +1,142 @@
+# Design: Schießleiter-Rabatt und deutsches Datumsformat
+
+## Zusammenfassung
+
+Das Feature fügt zwei Erweiterungen hinzu:
+
+1. **Schießleiter-Rabatt**: Pro Schütze und Runde kann eine Runde als **kostenlos** markiert werden. Der Schießleiter erhält an einem Trainingstag automatisch seine erste Runde kostenlos, sofern er selbst in der Rotte steht. Die Markierung ist manuell überschreibbar.
+2. **Deutsches Datumsformat**: Datums- und Zeitangaben in der App-Oberfläche und auf dem Ausdruck erscheinen immer als `dd.mm.yyyy hh:mm` (Beispiel: `23.04.2026 09:30`). Der CSV-Export behält das ISO-Format bei.
+
+## Kontext
+
+- `zahlungsstatus` existiert bereits pro Schütze/Runde als Boolean (`true` = bezahlt, `false` = offen).
+- Der Schießleiter wird beim Anlegen einer neuen Runde bereits vorausgefüllt, wenn an dem Tag schon ein Schießleiter eingetragen war.
+- Bekannte Schützen stammen aus der globalen Schützenliste; bekannte Schießleiter werden aus bisherigen Runden gesammelt.
+- Der Tagesfilter in der Rundenliste zeigt das Datum bereits als `dd.mm.yyyy`; die Rundenzeit wird aber noch als `YYYY-MM-DD HH:MM` dargestellt.
+
+## Entschiedene Fragen
+
+| Frage | Entscheidung |
+|-------|--------------|
+| Separate Markierung für "kostenlos"? | Ja. "Kostenlos" ist ein eigenes Flag, damit es auf dem Ausdruck nicht als "nicht bezahlt" erscheint und der Betrag nicht in der Tagessumme auftaucht. |
+| Wie kommt der Schießleiter in die Rotte? | Er erscheint in den Schützen-Vorschlägen und wird manuell hinzugefügt. |
+| Wann greift die Auto-Markierung? | Beim Erstellen einer Runde und beim Ändern eines Schützennamens auf den Schießleiter. Manuell ist sie danach überschreibbar. |
+| Datumsformat im CSV? | CSV bleibt maschinenlesbar im ISO-Format `YYYY-MM-DDTHH:MM`. |
+
+## Datenmodell
+
+### Erweiterung `Schuetze`
+
+```ts
+export interface Schuetze {
+  id: string;
+  name: string;
+  gaststatus: boolean;
+  zahlungsstatus: boolean;
+  kostenlos: boolean;   // neu
+  tauben: Taube[];
+}
+```
+
+- `kostenlos` ist im Datenmodell optional, damit bestehende Backups ohne Migration importiert werden können.
+- `createSchuetze` setzt `kostenlos: false`.
+- `GespeicherterSchuetze` bleibt unverändert; "Kostenlos" ist eine Eigenschaft der konkreten Runde, nicht der Person.
+
+## Domänenlogik
+
+### Neue Hilfsfunktionen in `src/domain/runden.ts`
+
+- `isKostenlos(schuetze: Schuetze): boolean` – gibt `schuetze.kostenlos ?? false` zurück.
+- `schuetzeIstZahlungspflichtig(schuetze: Schuetze): boolean` – `!isKostenlos(schuetze)`.
+- `hatSchuetzeKostenloseRundeAmTag(runden: Runde[], name: string, tag: string): boolean` – prüft, ob es an einem Tag bereits eine Runde gibt, in der diese Person als `kostenlos` markiert ist.
+- `ensureSchiessleiterFreirunde(runde: Runde, alleRunden: Runde[]): Runde` – wenn der Schießleiter in der aktuellen Rotte steht und an diesem Tag noch keine kostenlose Runde für ihn existiert, wird er in der aktuellen Runde auf `kostenlos: true` gesetzt.
+
+### Automatik-Regel für die Freirunde
+
+1. Beim **Erstellen einer neuen Runde** wird `ensureSchiessleiterFreirunde` aufgerufen.
+2. Beim **Ändern eines Schützennamens** im Editor wird geprüft, ob der neue Name dem Schießleiter entspricht; falls ja und die Freirunde für den Tag noch offen ist, wird `kostenlos` automatisch gesetzt.
+3. Bereits gesetzte `kostenlos`-Markierungen werden **nicht automatisch entfernt**, um manuelle Eingriffe zu respektieren.
+
+### Zahlungslogik
+
+`kostenlos` hat immer Vorrang:
+
+- `getSchuetzenPreisCent(runde, schuetze)` gibt `0` zurück, wenn `isKostenlos(schuetze)`.
+- `getEingenommenCent(runde)` und `getRundengeld(runde)` ignorieren kostenlose Schützen.
+- `getDayPaymentShooters(runden)` zeigt kostenlose Schützen mit Betrag `0` und einem Badge "Kostenlos", aber nicht als "unbezahlt".
+- In der Rundenliste zählt "X unbezahlt" kostenlose Schützen nicht mit.
+
+## UI-Anpassungen
+
+### Runden-Editor
+
+- Neue Spalte **"Kostenlos"** neben "Gast" und "Bezahlt".
+- "Kostenlos" und "Bezahlt" schließen sich gegenseitig aus: ist "Kostenlos" gesetzt, wird "Bezahlt" deaktiviert und enthakt.
+- Die Schützen-Vorschläge enthalten zukünftig auch die Namen bisheriger Schießleiter, damit der Schießleiter leicht als Schütze hinzugefügt werden kann.
+
+### Rundenliste
+
+- "X unbezahlt" zählt kostenlose Schützen nicht mit.
+- Optional: Badge "Frei" oder "Kostenlos" in der Rundenzeile, wenn mindestens ein Schütze kostenlos ist.
+
+### Bezahlen-Dialog
+
+- Kostenlose Schützen erscheinen mit Betrag `0,00 €` und Badge "Kostenlos".
+- Sie fließen nicht in die offenen Posten oder die Tagessumme ein.
+
+### Druckansicht
+
+- `PrintEinzelergebnisse` und `PrintZusammenfassung` erhalten eine Spalte **"Kostenlos"** (`ja`/`nein`).
+- Spalte "Bezahlt" bleibt erhalten.
+- Datumsangaben erscheinen als `dd.mm.yyyy hh:mm`.
+
+## Export & Backup
+
+### CSV-Export
+
+- Neue Spalte `kostenlos` mit Werten `ja`/`nein`.
+- Spalte `zahlungsstatus` bleibt erhalten.
+- `rundenzeit` bleibt im ISO-Format `YYYY-MM-DDTHH:MM`.
+
+### Backup
+
+- `kostenlos` ist ein optionales Feld in `Schuetze`.
+- Backup-Validierung akzeptiert sowohl alte Backups ohne `kostenlos` (default `false`) als auch neue mit dem Feld.
+- Keine Backup-Versionsänderung nötig.
+
+## Datumsformat
+
+- **App-Oberfläche** und **Druckansicht**: `dd.mm.yyyy hh:mm` (z. B. `23.04.2026 09:30`).
+- **Tagesfilter**: Bereits korrekt als `dd.mm.yyyy`; bleibt.
+- **HTML-Input `datetime-local`**: Behält intern das ISO-Format `YYYY-MM-DDTHH:MM`; die sichtbare Formatierung ändert sich nur an reinen Anzeigefeldern.
+- Neuer Formatter `formatRundenzeitDeutsch(value: string): string` ersetzt `formatRundenzeit`.
+
+## Dateien
+
+- `src/domain/model.ts`
+- `src/domain/runden.ts`
+- `src/domain/runden.test.ts`
+- `src/App.tsx`
+- `src/App.test.tsx`
+- `src/export/csv.ts`
+- `src/export/export.test.ts`
+- `src/export/backup.ts`
+- `src/export/backup.test.ts`
+
+## Tests
+
+### Domain
+
+- `ensureSchiessleiterFreirunde`:
+  - Schießleiter in Rotte → erste Runde am Tag wird kostenlos.
+  - Zweite Runde am Tag bleibt ohne Auto-Markierung.
+  - Schießleiter nicht in Rotte → keine Änderung.
+- Zahlungslogik: kostenlose Schützen fließen nicht in Rundengeld/Tagessumme ein.
+
+### UI
+
+- Beim Anlegen einer Runde mit bekanntem Schießleiter als Schütze ist `kostenlos` vorausgewählt.
+
+### Backup
+
+- Import ohne `kostenlos`-Feld läuft durch und behandelt fehlende Werte als `false`.
