@@ -666,12 +666,16 @@ export function exportRundenCsv(runden: Runde[]): string {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **Step 4: Update existing export.test.ts assertions**
+
+Existing assertions in `src/export/export.test.ts` expect the old column order (`zahlungsstatus` immediately followed by `ergebnis`). Update them to include the new `kostenlos` column between `zahlungsstatus` and `ergebnis`.
+
+- [ ] **Step 5: Run all export tests**
 
 Run: `npm test -- src/export/export.test.ts`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add src/export/csv.ts src/export/export.test.ts
@@ -883,6 +887,42 @@ function applyKnownShooter(schuetzeId: string, knownShooter: KnownShooter) {
 }
 ```
 
+Also update `addRecentSchuetze` so that clicking a recent-shooter pill triggers the free-round logic when the name matches the Schießleiter:
+
+```tsx
+function addRecentSchuetze(schuetze: GespeicherterSchuetze) {
+  if (rotteLocked || ergebnisseLocked || currentShooterNames.has(schuetze.name)) {
+    return;
+  }
+
+  const emptySchuetze = runde.rotte.find((entry) => entry.name.trim().length === 0);
+  if (emptySchuetze) {
+    let nextRunde = updateSchuetze(runde, emptySchuetze.id, {
+      name: schuetze.name,
+      gaststatus: schuetze.gaststatus
+    });
+    if (schuetze.name.trim().toLocaleLowerCase() === runde.schiessleiter.trim().toLocaleLowerCase()) {
+      nextRunde = ensureSchiessleiterFreirunde(nextRunde, runden);
+    }
+    onChange(nextRunde);
+    return;
+  }
+
+  if (runde.rotte.length < 6) {
+    let nextRunde = addSchuetze(runde);
+    const newSchuetze = nextRunde.rotte[nextRunde.rotte.length - 1];
+    nextRunde = updateSchuetze(nextRunde, newSchuetze.id, {
+      name: schuetze.name,
+      gaststatus: schuetze.gaststatus
+    });
+    if (schuetze.name.trim().toLocaleLowerCase() === runde.schiessleiter.trim().toLocaleLowerCase()) {
+      nextRunde = ensureSchiessleiterFreirunde(nextRunde, runden);
+    }
+    onChange(nextRunde);
+  }
+}
+```
+
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npm test -- src/App.test.tsx`
@@ -1079,7 +1119,81 @@ git commit -m "feat(payment): handle kostenlos shooters in day payment dialog"
 
 ---
 
-### Task 12: Druckansicht – Kostenlos-Spalte und deutsches Datum
+### Task 12: Deutsches Datumsformat überall
+
+**Files:**
+- Modify: `src/domain/runden.ts`
+- Modify: `src/App.tsx`
+- Test: `src/domain/runden.test.ts`
+
+- [ ] **Step 1: Write failing test**
+
+In `src/domain/runden.test.ts`:
+
+```ts
+import { formatRundenzeitDeutsch } from "./runden";
+
+describe("formatRundenzeitDeutsch", () => {
+  it("returns fallback for empty value", () => {
+    expect(formatRundenzeitDeutsch("")).toBe("Rundenzeit offen");
+  });
+
+  it("formats datetime to german format", () => {
+    expect(formatRundenzeitDeutsch("2026-04-23T09:30")).toBe("23.04.2026 09:30");
+  });
+
+  it("formats date-only to german format", () => {
+    expect(formatRundenzeitDeutsch("2026-04-23")).toBe("23.04.2026");
+  });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npm test -- src/domain/runden.test.ts`
+Expected: FAIL – function not defined.
+
+- [ ] **Step 3: Implement formatter and update call sites**
+
+In `src/domain/runden.ts`:
+
+```ts
+export function formatRundenzeitDeutsch(value: string): string {
+  if (!value) {
+    return "Rundenzeit offen";
+  }
+
+  const [datePart, timePart] = value.split("T");
+  const [year, month, day] = datePart.split("-");
+  const germanDate = `${day}.${month}.${year}`;
+  return timePart ? `${germanDate} ${timePart.slice(0, 5)}` : germanDate;
+}
+```
+
+In `src/App.tsx`:
+
+- Replace `formatRundenzeit` with `formatRundenzeitDeutsch` in `RundenListItem`.
+- Replace `formatRundenzeit` in `PapierkorbView`.
+- Delete the old `formatRundenzeit` function.
+
+- [ ] **Step 4: Run tests**
+
+Run: `npm test -- src/domain/runden.test.ts`
+Expected: PASS
+
+Run: `npm test`
+Expected: All tests pass.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/domain/runden.ts src/domain/runden.test.ts src/App.tsx
+git commit -m "feat(format): use german date format for all displayed datetimes"
+```
+
+---
+
+### Task 13: Druckansicht – Kostenlos-Spalte und deutsches Datum
 
 **Files:**
 - Modify: `src/App.tsx`
@@ -1108,12 +1222,12 @@ describe("Druckansicht kostenlos und datum", () => {
     await user.click(screen.getByRole("button", { name: /anna|bernd/i })); // open round
     await user.click(screen.getByRole("button", { name: /druckansicht/i }));
     expect(screen.getByText(/kostenlos/i)).toBeInTheDocument();
-    expect(screen.getByText(/23\.04\.2026/i)).toBeInTheDocument();
+    expect(screen.getByText(/\d{2}\.\d{2}\.\d{4}/i)).toBeInTheDocument();
   });
 });
 ```
 
-Note: adjust the date in the test to match the current date when running, or use a fixed `rundenzeit` via localStorage setup.
+
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -1189,80 +1303,6 @@ Expected: PASS
 ```bash
 git add src/App.tsx src/App.test.tsx
 git commit -m "feat(print): add kostenlos column and german date format"
-```
-
----
-
-### Task 13: Deutsches Datumsformat überall
-
-**Files:**
-- Modify: `src/domain/runden.ts`
-- Modify: `src/App.tsx`
-- Test: `src/domain/runden.test.ts`
-
-- [ ] **Step 1: Write failing test**
-
-In `src/domain/runden.test.ts`:
-
-```ts
-import { formatRundenzeitDeutsch } from "./runden";
-
-describe("formatRundenzeitDeutsch", () => {
-  it("returns fallback for empty value", () => {
-    expect(formatRundenzeitDeutsch("")).toBe("Rundenzeit offen");
-  });
-
-  it("formats datetime to german format", () => {
-    expect(formatRundenzeitDeutsch("2026-04-23T09:30")).toBe("23.04.2026 09:30");
-  });
-
-  it("formats date-only to german format", () => {
-    expect(formatRundenzeitDeutsch("2026-04-23")).toBe("23.04.2026");
-  });
-});
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `npm test -- src/domain/runden.test.ts`
-Expected: FAIL – function not defined.
-
-- [ ] **Step 3: Implement formatter and update call sites**
-
-In `src/domain/runden.ts`:
-
-```ts
-export function formatRundenzeitDeutsch(value: string): string {
-  if (!value) {
-    return "Rundenzeit offen";
-  }
-
-  const [datePart, timePart] = value.split("T");
-  const [year, month, day] = datePart.split("-");
-  const germanDate = `${day}.${month}.${year}`;
-  return timePart ? `${germanDate} ${timePart.slice(0, 5)}` : germanDate;
-}
-```
-
-In `src/App.tsx`:
-
-- Replace `formatRundenzeit` with `formatRundenzeitDeutsch` in `RundenListItem`.
-- Replace `formatRundenzeit` in `PapierkorbView`.
-- Delete the old `formatRundenzeit` function.
-
-- [ ] **Step 4: Run tests**
-
-Run: `npm test -- src/domain/runden.test.ts`
-Expected: PASS
-
-Run: `npm test`
-Expected: All tests pass.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add src/domain/runden.ts src/domain/runden.test.ts src/App.tsx
-git commit -m "feat(format): use german date format for all displayed datetimes"
 ```
 
 ---
