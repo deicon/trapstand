@@ -1070,3 +1070,24 @@ describe("RundenEditor kostenlos", () => {
     expect(bezahltCheckbox).toBeDisabled();
   });
 });
+
+describe("Schiessleiter freirunde", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    localStorage.clear();
+  });
+
+  it("marks schiessleiter as kostenlos when added as shooter", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /neue runde/i }));
+
+    const schiessleiterInput = screen.getByLabelText(/schie(?:ß|ss)leiter/i);
+    fireEvent.change(schiessleiterInput, { target: { value: "Leo" } });
+
+    const shooterInput = screen.getByLabelText(/name schuetze 1/i);
+    fireEvent.change(shooterInput, { target: { value: "Leo" } });
+
+    const kostenlosCheckbox = screen.getByRole("checkbox", { name: /leo ist kostenlos/i });
+    expect(kostenlosCheckbox).toBeChecked();
+  });
+});

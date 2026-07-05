@@ -5,6 +5,7 @@ import {
   createEntwurf,
   cumulativeErgebnisse,
   dayKey,
+  ensureSchiessleiterFreirunde,
   getRundenPreise,
   getSchuetzenPreisCent,
   hasRundeneintraege,
@@ -1043,7 +1044,7 @@ function RundenEditor({ runden, schuetzen, recentSchuetzen, runde, onBack, onPri
   const rotteLocked = hasRundeneintraege(runde);
   const ergebnisseLocked = runde.gesperrt === true;
   const [validationMessage, setValidationMessage] = useState("");
-  const knownShooters = getKnownShooters(schuetzen);
+  const knownShooters = getKnownShooters(schuetzen, runden);
   const knownSchiessleiter = getKnownSchiessleiter(runden, runde);
   const currentShooterNames = new Set(runde.rotte.map((schuetze) => schuetze.name.trim()).filter(Boolean));
 
@@ -1072,11 +1073,30 @@ function RundenEditor({ runden, schuetzen, recentSchuetzen, runde, onBack, onPri
 
   function updateShooterName(schuetzeId: string, name: string) {
     const knownShooter = knownShooters.find((schuetze) => schuetze.name === name);
-    onChange(updateSchuetze(runde, schuetzeId, knownShooter ? { name, gaststatus: knownShooter.gaststatus } : { name }));
+    const patch: Partial<Omit<Schuetze, "id" | "tauben">> = knownShooter
+      ? { name, gaststatus: knownShooter.gaststatus }
+      : { name };
+
+    let nextRunde = updateSchuetze(runde, schuetzeId, patch);
+
+    if (name.trim().toLocaleLowerCase() === runde.schiessleiter.trim().toLocaleLowerCase()) {
+      nextRunde = ensureSchiessleiterFreirunde(nextRunde, runden);
+    }
+
+    onChange(nextRunde);
   }
 
   function applyKnownShooter(schuetzeId: string, knownShooter: KnownShooter) {
-    onChange(updateSchuetze(runde, schuetzeId, { name: knownShooter.name, gaststatus: knownShooter.gaststatus }));
+    let nextRunde = updateSchuetze(runde, schuetzeId, {
+      name: knownShooter.name,
+      gaststatus: knownShooter.gaststatus
+    });
+
+    if (knownShooter.name.trim().toLocaleLowerCase() === runde.schiessleiter.trim().toLocaleLowerCase()) {
+      nextRunde = ensureSchiessleiterFreirunde(nextRunde, runden);
+    }
+
+    onChange(nextRunde);
   }
 
   function addRecentSchuetze(schuetze: GespeicherterSchuetze) {
@@ -1086,14 +1106,28 @@ function RundenEditor({ runden, schuetzen, recentSchuetzen, runde, onBack, onPri
 
     const emptySchuetze = runde.rotte.find((entry) => entry.name.trim().length === 0);
     if (emptySchuetze) {
-      onChange(updateSchuetze(runde, emptySchuetze.id, { name: schuetze.name, gaststatus: schuetze.gaststatus }));
+      let nextRunde = updateSchuetze(runde, emptySchuetze.id, {
+        name: schuetze.name,
+        gaststatus: schuetze.gaststatus
+      });
+      if (schuetze.name.trim().toLocaleLowerCase() === runde.schiessleiter.trim().toLocaleLowerCase()) {
+        nextRunde = ensureSchiessleiterFreirunde(nextRunde, runden);
+      }
+      onChange(nextRunde);
       return;
     }
 
     if (runde.rotte.length < 6) {
-      const nextRunde = addSchuetze(runde);
+      let nextRunde = addSchuetze(runde);
       const newSchuetze = nextRunde.rotte[nextRunde.rotte.length - 1];
-      onChange(updateSchuetze(nextRunde, newSchuetze.id, { name: schuetze.name, gaststatus: schuetze.gaststatus }));
+      nextRunde = updateSchuetze(nextRunde, newSchuetze.id, {
+        name: schuetze.name,
+        gaststatus: schuetze.gaststatus
+      });
+      if (schuetze.name.trim().toLocaleLowerCase() === runde.schiessleiter.trim().toLocaleLowerCase()) {
+        nextRunde = ensureSchiessleiterFreirunde(nextRunde, runden);
+      }
+      onChange(nextRunde);
     }
   }
 
@@ -1311,8 +1345,23 @@ interface KnownShooter {
   gaststatus: boolean;
 }
 
-function getKnownShooters(schuetzen: GespeicherterSchuetze[]): KnownShooter[] {
-  return schuetzen.map((schuetze) => ({ name: schuetze.name, gaststatus: schuetze.gaststatus })).sort((a, b) => a.name.localeCompare(b.name));
+function getKnownShooters(schuetzen: GespeicherterSchuetze[], runden: Runde[]): KnownShooter[] {
+  const byName = new Map<string, boolean>();
+
+  for (const schuetze of schuetzen) {
+    byName.set(schuetze.name, schuetze.gaststatus);
+  }
+
+  for (const runde of runden) {
+    const name = runde.schiessleiter.trim();
+    if (name && !byName.has(name)) {
+      byName.set(name, false);
+    }
+  }
+
+  return Array.from(byName.entries())
+    .map(([name, gaststatus]) => ({ name, gaststatus }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function getKnownSchiessleiter(runden: Runde[], activeRunde: Runde): string[] {
