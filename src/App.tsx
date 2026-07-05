@@ -1860,6 +1860,7 @@ function PrintEinzelergebnisse({ runde }: { runde: Runde }) {
           {Array.from({ length: 25 }, (_, index) => <th key={index}>Zwischenstand {index + 1}</th>)}
           <th>Gast</th>
           <th>Ergebnis</th>
+          <th>Kostenlos</th>
           <th>Bezahlt</th>
         </tr>
       </thead>
@@ -1870,6 +1871,7 @@ function PrintEinzelergebnisse({ runde }: { runde: Runde }) {
             {cumulativeErgebnisse(schuetze).map((value, index) => <td key={index}>{value}</td>)}
             <td>{schuetze.gaststatus ? "ja" : "nein"}</td>
             <td>{schuetzenErgebnis(schuetze)}</td>
+            <td>{schuetze.kostenlos ? "ja" : "nein"}</td>
             <td>{schuetze.zahlungsstatus ? "ja" : "nein"}</td>
           </tr>
         ))}
@@ -1886,6 +1888,7 @@ function PrintZusammenfassung({ runde }: { runde: Runde }) {
           <th>Schuetze</th>
           <th>Gast</th>
           <th>Ergebnis</th>
+          <th>Kostenlos</th>
           <th>Bezahlt</th>
         </tr>
       </thead>
@@ -1895,6 +1898,7 @@ function PrintZusammenfassung({ runde }: { runde: Runde }) {
             <th>{schuetze.name}</th>
             <td>{schuetze.gaststatus ? "ja" : "nein"}</td>
             <td>{schuetzenErgebnis(schuetze)}</td>
+            <td>{schuetze.kostenlos ? "ja" : "nein"}</td>
             <td>{schuetze.zahlungsstatus ? "ja" : "nein"}</td>
           </tr>
         ))}

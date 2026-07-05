@@ -1155,3 +1155,36 @@ describe("DayPaymentDialog kostenlos", () => {
     expect(screen.getByRole("checkbox", { name: /bernd bezahlt/i })).toBeDisabled();
   });
 });
+
+describe("Druckansicht kostenlos und datum", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    localStorage.clear();
+  });
+
+  it("shows kostenlos column and german date", () => {
+    const store = new LocalDatenbestand();
+    let runde = createRunde({
+      id: "r1",
+      rundenzeit: "2026-07-05T10:00",
+      schiessleiter: "Leiter",
+      schuetzenNamen: ["Bernd"]
+    });
+    runde = {
+      ...runde,
+      rotte: runde.rotte.map((schuetze) => ({
+        ...schuetze,
+        kostenlos: true,
+        tauben: schuetze.tauben.map((taube) => ({ ...taube, status: "getroffen" as const }))
+      }))
+    };
+    store.save(runde);
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /bernd/i }));
+    fireEvent.click(screen.getByRole("button", { name: /druckansicht/i }));
+
+    expect(screen.getByText(/kostenlos/i)).toBeInTheDocument();
+    expect(screen.getByText(/05\.07\.2026/i)).toBeInTheDocument();
+  });
+});
