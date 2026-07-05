@@ -213,7 +213,7 @@ In `src/domain/runden.ts`:
 
 ```ts
 export function isKostenlos(schuetze: Schuetze): boolean {
-  return schuetze.kostenlos;
+  return schuetze.kostenlos ?? false;
 }
 
 export function schuetzeIstZahlungspflichtig(schuetze: Schuetze): boolean {
@@ -266,7 +266,7 @@ export function ensureSchiessleiterFreirunde(runde: Runde, alleRunden: Runde[]):
 }
 ```
 
-Note: `dayKey` currently lives in `src/App.tsx`; duplicating it in `src/domain/runden.ts` allows domain functions to use it. Alternatively, move `dayKey` from `App.tsx` to `runden.ts` and import it in `App.tsx`.
+Note: move `dayKey` from `src/App.tsx` to `src/domain/runden.ts` and export it. Update `src/App.tsx` to import `dayKey` from `./domain/runden`.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -923,6 +923,8 @@ function addRecentSchuetze(schuetze: GespeicherterSchuetze) {
 }
 ```
 
+Ensure `src/App.tsx` imports `ensureSchiessleiterFreirunde` from `./domain/runden`.
+
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npm test -- src/App.test.tsx`
@@ -1075,6 +1077,8 @@ function getDayPaymentShooters(runden: Runde[]): DayPaymentShooter[] {
 }
 ```
 
+Ensure `src/App.tsx` imports `isKostenlos` from `./domain/runden`.
+
 - [ ] **Step 4: Disable checkbox for kostenlos / zero-amount shooters**
 
 In `DayPaymentDialog`, update the row renderer:
@@ -1174,7 +1178,10 @@ In `src/App.tsx`:
 
 - Replace `formatRundenzeit` with `formatRundenzeitDeutsch` in `RundenListItem`.
 - Replace `formatRundenzeit` in `PapierkorbView`.
+- Replace `formatRundenzeit` with `formatRundenzeitDeutsch` in `PrintView`.
 - Delete the old `formatRundenzeit` function.
+
+Ensure `src/App.tsx` imports `formatRundenzeitDeutsch` from `./domain/runden`.
 
 - [ ] **Step 4: Run tests**
 
@@ -1279,30 +1286,16 @@ In `PrintZusammenfassung`:
 
 Add corresponding body cell.
 
-- [ ] **Step 4: Update print view date**
-
-In `PrintView`, replace:
-
-```tsx
-<p>{formatRundenzeit(runde.rundenzeit)} · Schießleiter: {runde.schiessleiter}</p>
-```
-
-with:
-
-```tsx
-<p>{formatRundenzeitDeutsch(runde.rundenzeit)} · Schießleiter: {runde.schiessleiter}</p>
-```
-
-- [ ] **Step 5: Run tests**
+- [ ] **Step 4: Run tests**
 
 Run: `npm test -- src/App.test.tsx`
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add src/App.tsx src/App.test.tsx
-git commit -m "feat(print): add kostenlos column and german date format"
+git commit -m "feat(print): add kostenlos column"
 ```
 
 ---
