@@ -17,8 +17,24 @@ describe("Export modules", () => {
 
     const csv = exportRundenCsv([runde]);
 
-    expect(csv).toContain("rundenId,rundenzeit,schiessleiter,schuetze,gaststatus,zahlungsstatus,ergebnis,taube_1");
-    expect(csv).toContain("runde-1,2026-05-30T14:00,Dieter,Anna,ja,ja,1,getroffen,verfehlt");
+    expect(csv).toContain("rundenId,rundenzeit,schiessleiter,schuetze,gaststatus,zahlungsstatus,kostenlos,ergebnis,taube_1");
+    expect(csv).toContain("runde-1,2026-05-30T14:00,Dieter,Anna,ja,ja,nein,1,getroffen,verfehlt");
+  });
+
+  it("exports CSV with kostenlos column", () => {
+    let runde = createRunde({
+      id: "runde-2",
+      rundenzeit: "2026-05-30T15:00",
+      schiessleiter: "Leo",
+      schuetzenNamen: ["Leo"]
+    });
+    runde.rotte[0].kostenlos = true;
+
+    const csv = exportRundenCsv([runde]);
+    const lines = csv.split("\n");
+
+    expect(lines[0]).toContain("kostenlos");
+    expect(lines[1]).toContain("ja");
   });
 
   it("round-trips a JSON Backup-Export and rejects invalid JSON", () => {

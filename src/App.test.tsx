@@ -4,6 +4,7 @@ import { vi } from "vitest";
 import { App } from "./App";
 import { createRunde } from "./domain/runden";
 import { refreshPwa } from "./pwa/refresh";
+import { LocalDatenbestand } from "./storage/datenbestand";
 
 vi.mock("./pwa/refresh", () => ({
   refreshPwa: vi.fn(() => Promise.resolve())
@@ -947,7 +948,7 @@ describe("Trapstand app", () => {
     await user.click(screen.getByRole("checkbox", { name: /bernd bezahlt/i }));
     await user.click(screen.getByRole("button", { name: /schliessen/i }));
 
-    await user.click(screen.getByRole("button", { name: /bernd.*2026-05-31 20:00/i }));
+    await user.click(screen.getByRole("button", { name: /bernd.*31.05.2026 20:00/i }));
     expect(screen.getByRole("checkbox", { name: /bernd hat bezahlt/i })).not.toBeDisabled();
     expect(screen.getByRole("checkbox", { name: /bernd hat bezahlt/i })).toBeChecked();
 
@@ -1037,5 +1038,153 @@ describe("Trapstand app", () => {
     });
 
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+});
+
+describe("RundenEditor kostenlos", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    localStorage.clear();
+  });
+
+  it("shows Kostenlos checkbox", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /neue runde/i }));
+    expect(screen.getByRole("checkbox", { name: /ist kostenlos/i })).toBeInTheDocument();
+  });
+
+  it("unchecks Bezahlt when Kostenlos is checked", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /neue runde/i }));
+
+    const nameInput = screen.getByLabelText(/name schuetze 1/i);
+    fireEvent.change(nameInput, { target: { value: "Anna" } });
+
+    const bezahltCheckbox = screen.getByRole("checkbox", { name: /hat bezahlt/i });
+    fireEvent.click(bezahltCheckbox);
+    expect(bezahltCheckbox).toBeChecked();
+
+    const kostenlosCheckbox = screen.getByRole("checkbox", { name: /ist kostenlos/i });
+    fireEvent.click(kostenlosCheckbox);
+    expect(kostenlosCheckbox).toBeChecked();
+    expect(bezahltCheckbox).not.toBeChecked();
+    expect(bezahltCheckbox).toBeDisabled();
+  });
+});
+
+describe("Schiessleiter freirunde", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    localStorage.clear();
+  });
+
+  it("marks schiessleiter as kostenlos when added as shooter", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /neue runde/i }));
+
+    const schiessleiterInput = screen.getByLabelText(/schie(?:ß|ss)leiter/i);
+    fireEvent.change(schiessleiterInput, { target: { value: "Leo" } });
+
+    const shooterInput = screen.getByLabelText(/name schuetze 1/i);
+    fireEvent.change(shooterInput, { target: { value: "Leo" } });
+
+    const kostenlosCheckbox = screen.getByRole("checkbox", { name: /leo ist kostenlos/i });
+    expect(kostenlosCheckbox).toBeChecked();
+  });
+});
+
+describe("RundenListe kostenlos", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    localStorage.clear();
+  });
+
+  it("does not count kostenlos shooters as unbezahlt", () => {
+    const store = new LocalDatenbestand();
+    let runde = createRunde({
+      id: "r1",
+      rundenzeit: "2026-07-05T10:00",
+      schiessleiter: "Leiter",
+      schuetzenNamen: ["Bernd"]
+    });
+    runde = {
+      ...runde,
+      rotte: runde.rotte.map((schuetze) => ({
+        ...schuetze,
+        kostenlos: true,
+        tauben: schuetze.tauben.map((taube) => ({ ...taube, status: "getroffen" as const }))
+      }))
+    };
+    store.save(runde);
+
+    render(<App />);
+    expect(screen.getByText(/0 unbezahlt/i)).toBeInTheDocument();
+  });
+});
+
+describe("DayPaymentDialog kostenlos", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    localStorage.clear();
+  });
+
+  it("shows kostenlos shooter with zero amount and disabled checkbox", () => {
+    const store = new LocalDatenbestand();
+    let runde = createRunde({
+      id: "r1",
+      rundenzeit: "2026-07-05T10:00",
+      schiessleiter: "Leiter",
+      schuetzenNamen: ["Bernd"]
+    });
+    runde = {
+      ...runde,
+      rotte: runde.rotte.map((schuetze) => ({
+        ...schuetze,
+        kostenlos: true,
+        tauben: schuetze.tauben.map((taube) => ({ ...taube, status: "getroffen" as const }))
+      }))
+    };
+    store.save(runde);
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /bezahlen/i }));
+
+    const berndRow = screen.getByRole("checkbox", { name: /bernd bezahlt/i }).closest("label")!;
+    expect(within(berndRow).getByText(/0,00 €/i)).toBeInTheDocument();
+    expect(within(berndRow).getByText(/kostenlos/i)).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /bernd bezahlt/i })).toBeDisabled();
+  });
+});
+
+describe("Druckansicht kostenlos und datum", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    localStorage.clear();
+  });
+
+  it("shows kostenlos column and german date", () => {
+    const store = new LocalDatenbestand();
+    let runde = createRunde({
+      id: "r1",
+      rundenzeit: "2026-07-05T10:00",
+      schiessleiter: "Leiter",
+      schuetzenNamen: ["Bernd"]
+    });
+    runde = {
+      ...runde,
+      rotte: runde.rotte.map((schuetze) => ({
+        ...schuetze,
+        kostenlos: true,
+        tauben: schuetze.tauben.map((taube) => ({ ...taube, status: "getroffen" as const }))
+      }))
+    };
+    store.save(runde);
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /bernd/i }));
+    fireEvent.click(screen.getByRole("button", { name: /druckansicht/i }));
+
+    expect(screen.getByText(/kostenlos/i)).toBeInTheDocument();
+    expect(screen.getByText(/05\.07\.2026/i)).toBeInTheDocument();
   });
 });

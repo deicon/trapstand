@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import type { GespeicherterSchuetze, Runde, RundenPreise, Schuetze, Taubenstatus } from "./domain/model";
 import {
-  DEFAULT_PREISE,
   addSchuetze,
   createEntwurf,
   cumulativeErgebnisse,
+  dayKey,
+  ensureSchiessleiterFreirunde,
+  formatRundenzeitDeutsch,
+  getRundenPreise,
+  getSchuetzenPreisCent,
   hasRundeneintraege,
+  isKostenlos,
   removeSchuetze,
   rundenStatus,
   schuetzenErgebnis,
@@ -527,7 +532,7 @@ interface RundenListItemProps {
 
 function RundenListItem({ runde, onOpen, onSoftDelete }: RundenListItemProps) {
   const gaeste = runde.rotte.filter((schuetze) => schuetze.gaststatus).length;
-  const offen = runde.rotte.filter((schuetze) => !schuetze.zahlungsstatus).length;
+  const offen = runde.rotte.filter((schuetze) => !schuetze.kostenlos && !schuetze.zahlungsstatus).length;
   const namen = runde.rotte.map((schuetze) => schuetze.name || "Unbenannt").join(", ");
   const statusLabel = runde.gesperrt ? "Gesperrt" : rundenStatus(runde) === "vollstaendig" ? "Vollstaendig" : null;
 
@@ -535,7 +540,7 @@ function RundenListItem({ runde, onOpen, onSoftDelete }: RundenListItemProps) {
     <li className="round-row">
       <button className="round-open" onClick={() => onOpen(runde.id)}>
         <strong>{namen}</strong>
-        <span>{formatRundenzeit(runde.rundenzeit)} · {runde.schiessleiter || "Schießleiter offen"}</span>
+        <span>{formatRundenzeitDeutsch(runde.rundenzeit)} · {runde.schiessleiter || "Schießleiter offen"}</span>
         <span>
           {statusLabel && <span className={runde.gesperrt ? "round-badge round-badge-locked" : "round-badge"}>{statusLabel}</span>}
           {statusLabel ? " · " : ""}
@@ -659,7 +664,7 @@ function PapierkorbView({ geloeschteRunden, onBack, onRestore, onPermanentDelete
                     <li key={runde.id} className="round-row">
                       <div className="round-open" role="presentation">
                         <strong>{namen}</strong>
-                        <span>{formatRundenzeit(runde.rundenzeit)} · {runde.schiessleiter || "Schießleiter offen"}</span>
+                        <span>{formatRundenzeitDeutsch(runde.rundenzeit)} · {runde.schiessleiter || "Schießleiter offen"}</span>
                       </div>
                       <div className="trash-actions">
                         <button onClick={() => onRestore(runde.id)}>Wiederherstellen</button>
@@ -945,10 +950,6 @@ function sortRundenNewestFirst(runden: Runde[]): Runde[] {
   return [...runden].sort((a, b) => b.rundenzeit.localeCompare(a.rundenzeit));
 }
 
-function dayKey(runde: Runde): string {
-  return runde.rundenzeit.slice(0, 10);
-}
-
 function todayKey(): string {
   const today = new Date();
   const pad = (value: number) => String(value).padStart(2, "0");
@@ -993,14 +994,6 @@ function normalizeNameKey(name: string): string {
   return name.trim().toLocaleLowerCase();
 }
 
-function getRundenPreise(runde: Runde): RundenPreise {
-  return runde.preise ?? DEFAULT_PREISE;
-}
-
-function getSchuetzenPreisCent(runde: Runde, schuetze: Schuetze): number {
-  const rundenPreise = getRundenPreise(runde);
-  return schuetze.gaststatus ? rundenPreise.gastCent : rundenPreise.mitgliedCent;
-}
 
 function getEingenommenCent(runde: Runde): number {
   return runde.rotte.reduce((sum, schuetze) => sum + (schuetze.zahlungsstatus ? getSchuetzenPreisCent(runde, schuetze) : 0), 0);
@@ -1053,7 +1046,7 @@ function RundenEditor({ runden, schuetzen, recentSchuetzen, runde, onBack, onPri
   const rotteLocked = hasRundeneintraege(runde);
   const ergebnisseLocked = runde.gesperrt === true;
   const [validationMessage, setValidationMessage] = useState("");
-  const knownShooters = getKnownShooters(schuetzen);
+  const knownShooters = getKnownShooters(schuetzen, runden);
   const knownSchiessleiter = getKnownSchiessleiter(runden, runde);
   const currentShooterNames = new Set(runde.rotte.map((schuetze) => schuetze.name.trim()).filter(Boolean));
 
@@ -1082,11 +1075,30 @@ function RundenEditor({ runden, schuetzen, recentSchuetzen, runde, onBack, onPri
 
   function updateShooterName(schuetzeId: string, name: string) {
     const knownShooter = knownShooters.find((schuetze) => schuetze.name === name);
-    onChange(updateSchuetze(runde, schuetzeId, knownShooter ? { name, gaststatus: knownShooter.gaststatus } : { name }));
+    const patch: Partial<Omit<Schuetze, "id" | "tauben">> = knownShooter
+      ? { name, gaststatus: knownShooter.gaststatus }
+      : { name };
+
+    let nextRunde = updateSchuetze(runde, schuetzeId, patch);
+
+    if (name.trim().toLocaleLowerCase() === runde.schiessleiter.trim().toLocaleLowerCase()) {
+      nextRunde = ensureSchiessleiterFreirunde(nextRunde, runden);
+    }
+
+    onChange(nextRunde);
   }
 
   function applyKnownShooter(schuetzeId: string, knownShooter: KnownShooter) {
-    onChange(updateSchuetze(runde, schuetzeId, { name: knownShooter.name, gaststatus: knownShooter.gaststatus }));
+    let nextRunde = updateSchuetze(runde, schuetzeId, {
+      name: knownShooter.name,
+      gaststatus: knownShooter.gaststatus
+    });
+
+    if (knownShooter.name.trim().toLocaleLowerCase() === runde.schiessleiter.trim().toLocaleLowerCase()) {
+      nextRunde = ensureSchiessleiterFreirunde(nextRunde, runden);
+    }
+
+    onChange(nextRunde);
   }
 
   function addRecentSchuetze(schuetze: GespeicherterSchuetze) {
@@ -1096,14 +1108,28 @@ function RundenEditor({ runden, schuetzen, recentSchuetzen, runde, onBack, onPri
 
     const emptySchuetze = runde.rotte.find((entry) => entry.name.trim().length === 0);
     if (emptySchuetze) {
-      onChange(updateSchuetze(runde, emptySchuetze.id, { name: schuetze.name, gaststatus: schuetze.gaststatus }));
+      let nextRunde = updateSchuetze(runde, emptySchuetze.id, {
+        name: schuetze.name,
+        gaststatus: schuetze.gaststatus
+      });
+      if (schuetze.name.trim().toLocaleLowerCase() === runde.schiessleiter.trim().toLocaleLowerCase()) {
+        nextRunde = ensureSchiessleiterFreirunde(nextRunde, runden);
+      }
+      onChange(nextRunde);
       return;
     }
 
     if (runde.rotte.length < 6) {
-      const nextRunde = addSchuetze(runde);
+      let nextRunde = addSchuetze(runde);
       const newSchuetze = nextRunde.rotte[nextRunde.rotte.length - 1];
-      onChange(updateSchuetze(nextRunde, newSchuetze.id, { name: schuetze.name, gaststatus: schuetze.gaststatus }));
+      nextRunde = updateSchuetze(nextRunde, newSchuetze.id, {
+        name: schuetze.name,
+        gaststatus: schuetze.gaststatus
+      });
+      if (schuetze.name.trim().toLocaleLowerCase() === runde.schiessleiter.trim().toLocaleLowerCase()) {
+        nextRunde = ensureSchiessleiterFreirunde(nextRunde, runden);
+      }
+      onChange(nextRunde);
     }
   }
 
@@ -1200,6 +1226,7 @@ function RundenEditor({ runden, schuetzen, recentSchuetzen, runde, onBack, onPri
             <tr>
               <th>Schuetze</th>
               <th>Gast</th>
+              <th>Kostenlos</th>
               <th>Bezahlt</th>
               <th>Aktion</th>
             </tr>
@@ -1265,8 +1292,26 @@ function RundenEditor({ runden, schuetzen, recentSchuetzen, runde, onBack, onPri
                   <label className="compact-check">
                     <input
                       type="checkbox"
-                      checked={schuetze.zahlungsstatus}
+                      checked={schuetze.kostenlos}
                       disabled={ergebnisseLocked}
+                      onChange={(event) =>
+                        onChange(
+                          updateSchuetze(runde, schuetze.id, {
+                            kostenlos: event.target.checked,
+                            zahlungsstatus: event.target.checked ? false : schuetze.zahlungsstatus
+                          })
+                        )
+                      }
+                    />
+                    <span>{(schuetze.name || `Schuetze ${schuetzeIndex + 1}`)} ist kostenlos</span>
+                  </label>
+                </td>
+                <td>
+                  <label className="compact-check">
+                    <input
+                      type="checkbox"
+                      checked={schuetze.zahlungsstatus}
+                      disabled={ergebnisseLocked || schuetze.kostenlos}
                       onChange={(event) =>
                         onChange(updateSchuetze(runde, schuetze.id, { zahlungsstatus: event.target.checked }))
                       }
@@ -1302,8 +1347,23 @@ interface KnownShooter {
   gaststatus: boolean;
 }
 
-function getKnownShooters(schuetzen: GespeicherterSchuetze[]): KnownShooter[] {
-  return schuetzen.map((schuetze) => ({ name: schuetze.name, gaststatus: schuetze.gaststatus })).sort((a, b) => a.name.localeCompare(b.name));
+function getKnownShooters(schuetzen: GespeicherterSchuetze[], runden: Runde[]): KnownShooter[] {
+  const byName = new Map<string, boolean>();
+
+  for (const schuetze of schuetzen) {
+    byName.set(schuetze.name, schuetze.gaststatus);
+  }
+
+  for (const runde of runden) {
+    const name = runde.schiessleiter.trim();
+    if (name && !byName.has(name)) {
+      byName.set(name, false);
+    }
+  }
+
+  return Array.from(byName.entries())
+    .map(([name, gaststatus]) => ({ name, gaststatus }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function getKnownSchiessleiter(runden: Runde[], activeRunde: Runde): string[] {
@@ -1371,22 +1431,27 @@ function DayPaymentDialog({ day, runden, onTogglePaid, onClose }: DayPaymentDial
           <div className="empty-state">Keine Schuetzen fuer diesen Tag.</div>
         ) : (
           <div className="payment-list">
-            {shooters.map((schuetze) => (
-              <label key={schuetze.name} className="payment-row">
-                <input
-                  type="checkbox"
-                  aria-label={`${schuetze.name} bezahlt`}
-                  checked={schuetze.paid}
-                  onChange={(event) => onTogglePaid(schuetze.name, event.target.checked)}
-                />
-                <span className="payment-person">
-                  <span className="payment-name">{schuetze.name}</span>
-                  {schuetze.gaststatus && <span className="round-badge">Gast</span>}
-                </span>
-                <span className="payment-rounds">{formatRoundCount(schuetze.roundCount)}</span>
-                <span className="payment-amount">{formatMoney(schuetze.amountCent)}</span>
-              </label>
-            ))}
+            {shooters.map((schuetze) => {
+              const isKostenlosShooter = schuetze.amountCent === 0 && schuetze.roundCount === 0;
+              return (
+                <label key={schuetze.name} className={`payment-row${isKostenlosShooter ? " payment-row-kostenlos" : ""}`}>
+                  <input
+                    type="checkbox"
+                    aria-label={`${schuetze.name} bezahlt`}
+                    checked={schuetze.paid}
+                    disabled={isKostenlosShooter}
+                    onChange={(event) => onTogglePaid(schuetze.name, event.target.checked)}
+                  />
+                  <span className="payment-person">
+                    <span className="payment-name">{schuetze.name}</span>
+                    {schuetze.gaststatus && <span className="round-badge">Gast</span>}
+                    {isKostenlosShooter && <span className="round-badge">Kostenlos</span>}
+                  </span>
+                  <span className="payment-rounds">{formatRoundCount(schuetze.roundCount)}</span>
+                  <span className="payment-amount">{formatMoney(schuetze.amountCent)}</span>
+                </label>
+              );
+            })}
             <div className="payment-total">
               <span>Summe</span>
               <span>{formatMoney(totalAmountCent)}</span>
@@ -1416,6 +1481,18 @@ function getDayPaymentShooters(runden: Runde[]): DayPaymentShooter[] {
     for (const schuetze of runde.rotte) {
       const name = schuetze.name.trim();
       if (!name) {
+        continue;
+      }
+
+      if (isKostenlos(schuetze)) {
+        const current = shooters.get(name);
+        shooters.set(name, {
+          name,
+          roundCount: current?.roundCount ?? 0,
+          gaststatus: Boolean(current?.gaststatus || schuetze.gaststatus),
+          paid: current ? current.paid : true,
+          amountCent: current?.amountCent ?? 0
+        });
         continue;
       }
 
@@ -1748,7 +1825,7 @@ function PrintView({ runden, onBack, onExportCsv }: { runden: Runde[]; onBack: (
             const rundengeld = getRundengeld(runde);
             return (
               <>
-          <p>{formatRundenzeit(runde.rundenzeit)} · Schießleiter: {runde.schiessleiter}</p>
+          <p>{formatRundenzeitDeutsch(runde.rundenzeit)} · Schießleiter: {runde.schiessleiter}</p>
           {mode === "einzelergebnisse" ? <PrintEinzelergebnisse runde={runde} /> : <PrintZusammenfassung runde={runde} />}
           <p className="print-money">
             Rundengeld: Mitglieder {formatMoney(rundengeld.mitgliederCent)} · Gäste {formatMoney(rundengeld.gaesteCent)} · Gesamt {formatMoney(rundengeld.gesamtCent)}
@@ -1783,6 +1860,7 @@ function PrintEinzelergebnisse({ runde }: { runde: Runde }) {
           {Array.from({ length: 25 }, (_, index) => <th key={index}>Zwischenstand {index + 1}</th>)}
           <th>Gast</th>
           <th>Ergebnis</th>
+          <th>Kostenlos</th>
           <th>Bezahlt</th>
         </tr>
       </thead>
@@ -1793,6 +1871,7 @@ function PrintEinzelergebnisse({ runde }: { runde: Runde }) {
             {cumulativeErgebnisse(schuetze).map((value, index) => <td key={index}>{value}</td>)}
             <td>{schuetze.gaststatus ? "ja" : "nein"}</td>
             <td>{schuetzenErgebnis(schuetze)}</td>
+            <td>{schuetze.kostenlos ? "ja" : "nein"}</td>
             <td>{schuetze.zahlungsstatus ? "ja" : "nein"}</td>
           </tr>
         ))}
@@ -1809,6 +1888,7 @@ function PrintZusammenfassung({ runde }: { runde: Runde }) {
           <th>Schuetze</th>
           <th>Gast</th>
           <th>Ergebnis</th>
+          <th>Kostenlos</th>
           <th>Bezahlt</th>
         </tr>
       </thead>
@@ -1818,19 +1898,13 @@ function PrintZusammenfassung({ runde }: { runde: Runde }) {
             <th>{schuetze.name}</th>
             <td>{schuetze.gaststatus ? "ja" : "nein"}</td>
             <td>{schuetzenErgebnis(schuetze)}</td>
+            <td>{schuetze.kostenlos ? "ja" : "nein"}</td>
             <td>{schuetze.zahlungsstatus ? "ja" : "nein"}</td>
           </tr>
         ))}
       </tbody>
     </table>
   );
-}
-
-function formatRundenzeit(value: string): string {
-  if (!value) {
-    return "Rundenzeit offen";
-  }
-  return value.replace("T", " ");
 }
 
 async function downloadOrShare(filename: string, content: string, type: string) {

@@ -5,6 +5,18 @@ export const DEFAULT_PREISE: RundenPreise = {
   gastCent: 800
 };
 
+export function getRundenPreise(runde: Runde): RundenPreise {
+  return runde.preise ?? DEFAULT_PREISE;
+}
+
+export function getSchuetzenPreisCent(runde: Runde, schuetze: Schuetze): number {
+  if (isKostenlos(schuetze)) {
+    return 0;
+  }
+  const rundenPreise = getRundenPreise(runde);
+  return schuetze.gaststatus ? rundenPreise.gastCent : rundenPreise.mitgliedCent;
+}
+
 export interface CreateRundeInput {
   id: string;
   rundenzeit: string;
@@ -45,6 +57,7 @@ export function createSchuetze(name: string, position: number, id = `schuetze-${
     name,
     gaststatus: false,
     zahlungsstatus: false,
+    kostenlos: false,
     tauben: createTauben()
   };
 }
@@ -163,4 +176,71 @@ export function toLocalDateTimeInputValue(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(
     date.getMinutes()
   )}`;
+}
+
+export function isKostenlos(schuetze: Schuetze): boolean {
+  return schuetze.kostenlos ?? false;
+}
+
+export function schuetzeIstZahlungspflichtig(schuetze: Schuetze): boolean {
+  return !isKostenlos(schuetze);
+}
+
+export function dayKey(runde: Runde): string {
+  return runde.rundenzeit.slice(0, 10);
+}
+
+export function formatRundenzeitDeutsch(value: string): string {
+  if (!value) {
+    return "Rundenzeit offen";
+  }
+
+  const [datePart, timePart] = value.split("T");
+  const [year, month, day] = datePart.split("-");
+  const germanDate = `${day}.${month}.${year}`;
+  return timePart ? `${germanDate} ${timePart.slice(0, 5)}` : germanDate;
+}
+
+export function hatSchuetzeKostenloseRundeAmTag(
+  runden: Runde[],
+  name: string,
+  tag: string
+): boolean {
+  const normalizedName = name.trim().toLocaleLowerCase();
+  return runden.some(
+    (runde) =>
+      dayKey(runde) === tag &&
+      runde.rotte.some(
+        (schuetze) =>
+          schuetze.name.trim().toLocaleLowerCase() === normalizedName &&
+          isKostenlos(schuetze)
+      )
+  );
+}
+
+// Sets the schiessleiter's kostenlos flag when they are in the rotte and have
+// no other kostenlos round on the same day. Per spec, this only sets the flag
+// and never clears existing kostenlos flags, so manual overrides are respected.
+export function ensureSchiessleiterFreirunde(runde: Runde, alleRunden: Runde[]): Runde {
+  const schiessleiter = runde.schiessleiter.trim();
+  if (!schiessleiter) {
+    return runde;
+  }
+
+  const tag = dayKey(runde);
+  const andereRunden = alleRunden.filter((andere) => andere.id !== runde.id);
+  if (hatSchuetzeKostenloseRundeAmTag(andereRunden, schiessleiter, tag)) {
+    return runde;
+  }
+
+  const normalizedSchiessleiter = schiessleiter.toLocaleLowerCase();
+  const schiessleiterInRotte = runde.rotte.find(
+    (schuetze) => schuetze.name.trim().toLocaleLowerCase() === normalizedSchiessleiter
+  );
+
+  if (!schiessleiterInRotte) {
+    return runde;
+  }
+
+  return updateSchuetze(runde, schiessleiterInRotte.id, { kostenlos: true });
 }

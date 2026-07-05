@@ -1,13 +1,21 @@
 import {
   createRunde,
+  createSchuetze,
+  ensureSchiessleiterFreirunde,
+  formatRundenzeitDeutsch,
+  getSchuetzenPreisCent,
+  hatSchuetzeKostenloseRundeAmTag,
   hasRundeneintraege,
   isEntwurf,
   isGeloescht,
+  isKostenlos,
   isVollstaendigeRunde,
   rundenStatus,
+  schuetzeIstZahlungspflichtig,
   setRundeGesperrt,
   setTaubenstatus,
-  schuetzenErgebnis
+  schuetzenErgebnis,
+  updateSchuetze
 } from "./runden";
 
 describe("Runden domain", () => {
@@ -127,5 +135,165 @@ describe("Runden domain", () => {
 
     expect(isGeloescht({ ...normal, geloescht: true })).toBe(true);
     expect(isGeloescht({ ...normal, geloescht: false })).toBe(false);
+  });
+});
+
+describe("createSchuetze", () => {
+  it("initializes kostenlos to false", () => {
+    const schuetze = createSchuetze("Max", 1);
+    expect(schuetze.kostenlos).toBe(false);
+  });
+});
+
+describe("isKostenlos", () => {
+  it("returns false by default", () => {
+    const schuetze = createSchuetze("Max", 1);
+    expect(isKostenlos(schuetze)).toBe(false);
+  });
+
+  it("returns true when kostenlos is true", () => {
+    const schuetze = { ...createSchuetze("Max", 1), kostenlos: true };
+    expect(isKostenlos(schuetze)).toBe(true);
+  });
+});
+
+describe("schuetzeIstZahlungspflichtig", () => {
+  it("returns true when schuetze is not kostenlos", () => {
+    const schuetze = createSchuetze("Max", 1);
+    expect(schuetzeIstZahlungspflichtig(schuetze)).toBe(true);
+  });
+
+  it("returns false when schuetze is kostenlos", () => {
+    const schuetze = { ...createSchuetze("Max", 1), kostenlos: true };
+    expect(schuetzeIstZahlungspflichtig(schuetze)).toBe(false);
+  });
+});
+
+describe("hatSchuetzeKostenloseRundeAmTag", () => {
+  it("returns false when no kostenlos round exists", () => {
+    const runde = createRunde({
+      id: "r1",
+      rundenzeit: "2026-04-23T09:00",
+      schiessleiter: "Leo",
+      schuetzenNamen: ["Max"]
+    });
+    expect(hatSchuetzeKostenloseRundeAmTag([runde], "Max", "2026-04-23")).toBe(false);
+  });
+
+  it("returns true when a kostenlos round exists on the day", () => {
+    const runde = createRunde({
+      id: "r1",
+      rundenzeit: "2026-04-23T09:00",
+      schiessleiter: "Leo",
+      schuetzenNamen: ["Leo"]
+    });
+    const withKostenlos = updateSchuetze(runde, runde.rotte[0].id, { kostenlos: true });
+    expect(hatSchuetzeKostenloseRundeAmTag([withKostenlos], "Leo", "2026-04-23")).toBe(true);
+  });
+});
+
+describe("ensureSchiessleiterFreirunde", () => {
+  it("marks schiessleiter as kostenlos when in rotte and first round of day", () => {
+    const runde = createRunde({
+      id: "r1",
+      rundenzeit: "2026-04-23T09:00",
+      schiessleiter: "Leo",
+      schuetzenNamen: ["Leo", "Max"]
+    });
+    const result = ensureSchiessleiterFreirunde(runde, []);
+    const leo = result.rotte.find((s) => s.name === "Leo");
+    expect(leo?.kostenlos).toBe(true);
+  });
+
+  it("does not mark when schiessleiter is not in rotte", () => {
+    const runde = createRunde({
+      id: "r1",
+      rundenzeit: "2026-04-23T09:00",
+      schiessleiter: "Leo",
+      schuetzenNamen: ["Max"]
+    });
+    const result = ensureSchiessleiterFreirunde(runde, []);
+    expect(result.rotte.every((s) => !s.kostenlos)).toBe(true);
+  });
+
+  it("does not mark when a kostenlos round already exists for the day", () => {
+    const firstRunde = createRunde({
+      id: "r1",
+      rundenzeit: "2026-04-23T09:00",
+      schiessleiter: "Leo",
+      schuetzenNamen: ["Leo"]
+    });
+    const first = updateSchuetze(firstRunde, firstRunde.rotte[0].id, { kostenlos: true });
+    const second = createRunde({
+      id: "r2",
+      rundenzeit: "2026-04-23T10:00",
+      schiessleiter: "Leo",
+      schuetzenNamen: ["Leo"]
+    });
+    const result = ensureSchiessleiterFreirunde(second, [first]);
+    const leo = result.rotte.find((s) => s.name === "Leo");
+    expect(leo?.kostenlos).toBe(false);
+  });
+});
+
+describe("getSchuetzenPreisCent", () => {
+  it("returns mitgliedCent for non-kostenlos members", () => {
+    const runde = createRunde({
+      id: "r1",
+      rundenzeit: "2026-04-23T09:00",
+      schiessleiter: "Leo",
+      schuetzenNamen: ["Max"]
+    });
+    expect(getSchuetzenPreisCent(runde, runde.rotte[0])).toBe(500);
+  });
+
+  it("returns gastCent for non-kostenlos guests", () => {
+    const runde = createRunde({
+      id: "r1",
+      rundenzeit: "2026-04-23T09:00",
+      schiessleiter: "Leo",
+      schuetzenNamen: ["Max"]
+    });
+    const max = updateSchuetze(runde, runde.rotte[0].id, { gaststatus: true }).rotte[0];
+    expect(getSchuetzenPreisCent(runde, max)).toBe(800);
+  });
+
+  it("returns 0 for kostenlos shooters", () => {
+    const runde = createRunde({
+      id: "r1",
+      rundenzeit: "2026-04-23T09:00",
+      schiessleiter: "Leo",
+      schuetzenNamen: ["Max"]
+    });
+    const withKostenlos = updateSchuetze(runde, runde.rotte[0].id, { kostenlos: true });
+    expect(getSchuetzenPreisCent(withKostenlos, withKostenlos.rotte[0])).toBe(0);
+  });
+
+  it("returns 0 for kostenlos guests", () => {
+    const runde = createRunde({
+      id: "r1",
+      rundenzeit: "2026-04-23T09:00",
+      schiessleiter: "Leo",
+      schuetzenNamen: ["Max"]
+    });
+    const withGastAndKostenlos = updateSchuetze(runde, runde.rotte[0].id, {
+      gaststatus: true,
+      kostenlos: true
+    });
+    expect(getSchuetzenPreisCent(withGastAndKostenlos, withGastAndKostenlos.rotte[0])).toBe(0);
+  });
+});
+
+describe("formatRundenzeitDeutsch", () => {
+  it("returns fallback for empty value", () => {
+    expect(formatRundenzeitDeutsch("")).toBe("Rundenzeit offen");
+  });
+
+  it("formats datetime to german format", () => {
+    expect(formatRundenzeitDeutsch("2026-04-23T09:30")).toBe("23.04.2026 09:30");
+  });
+
+  it("formats date-only to german format", () => {
+    expect(formatRundenzeitDeutsch("2026-04-23")).toBe("23.04.2026");
   });
 });

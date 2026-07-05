@@ -129,7 +129,15 @@ export class LocalDatenbestand {
 
     try {
       const parsed = JSON.parse(raw) as Datenbestand;
-      const runden = Array.isArray(parsed.runden) ? parsed.runden : [];
+      const runden = Array.isArray(parsed.runden)
+        ? parsed.runden.map((runde) => ({
+            ...runde,
+            rotte: runde.rotte.map((schuetze) => ({
+              ...schuetze,
+              kostenlos: schuetze.kostenlos ?? false
+            }))
+          }))
+        : [];
       const schuetzen = normalizeSchuetzen(parsed.schuetzen, runden);
       return {
         runden,

@@ -2,6 +2,12 @@ import type { Datenbestand, GespeicherterSchuetze, Runde, RundenPreise, Schuetze
 
 const backupVersion = 1;
 
+export type BackupSchuetze = Omit<Schuetze, "kostenlos"> & { kostenlos?: boolean };
+
+export type BackupRunde = Omit<Runde, "rotte"> & { rotte: BackupSchuetze[] };
+
+export type BackupDatenbestand = Omit<Datenbestand, "runden"> & { runden: BackupRunde[] };
+
 export function exportBackupJson(datenbestand: Datenbestand): string {
   return JSON.stringify({ version: backupVersion, ...datenbestand }, null, 2);
 }
@@ -13,7 +19,13 @@ export function importBackupJson(json: string): Datenbestand {
       throw new Error("invalid");
     }
     return {
-      runden: parsed.runden,
+      runden: parsed.runden.map((runde) => ({
+        ...runde,
+        rotte: runde.rotte.map((schuetze) => ({
+          ...schuetze,
+          kostenlos: schuetze.kostenlos ?? false
+        }))
+      })),
       ...(parsed.schuetzen ? { schuetzen: parsed.schuetzen } : {}),
       ...(parsed.preise ? { preise: parsed.preise } : {})
     };
@@ -22,18 +34,18 @@ export function importBackupJson(json: string): Datenbestand {
   }
 }
 
-function isDatenbestandBackup(value: unknown): value is { version: number; runden: Runde[]; schuetzen?: GespeicherterSchuetze[]; preise?: RundenPreise } {
+function isDatenbestandBackup(value: unknown): value is BackupDatenbestand {
   if (!isRecord(value) || value.version !== backupVersion || !Array.isArray(value.runden)) {
     return false;
   }
   return (
     (value.preise === undefined || isPreise(value.preise)) &&
     (value.schuetzen === undefined || (Array.isArray(value.schuetzen) && value.schuetzen.every(isGespeicherterSchuetze))) &&
-    value.runden.every(isRunde)
+    value.runden.every(isBackupRunde)
   );
 }
 
-function isRunde(value: unknown): value is Runde {
+function isBackupRunde(value: unknown): value is BackupRunde {
   return (
     isRecord(value) &&
     typeof value.id === "string" &&
@@ -46,7 +58,7 @@ function isRunde(value: unknown): value is Runde {
     Array.isArray(value.rotte) &&
     value.rotte.length >= 1 &&
     value.rotte.length <= 6 &&
-    value.rotte.every(isSchuetze)
+    value.rotte.every(isBackupSchuetze)
   );
 }
 
@@ -54,13 +66,14 @@ function isPreise(value: unknown): value is RundenPreise {
   return isRecord(value) && typeof value.mitgliedCent === "number" && typeof value.gastCent === "number";
 }
 
-function isSchuetze(value: unknown): value is Schuetze {
+function isBackupSchuetze(value: unknown): value is BackupSchuetze {
   return (
     isRecord(value) &&
     typeof value.id === "string" &&
     typeof value.name === "string" &&
     typeof value.gaststatus === "boolean" &&
     typeof value.zahlungsstatus === "boolean" &&
+    (value.kostenlos === undefined || typeof value.kostenlos === "boolean") &&
     Array.isArray(value.tauben) &&
     value.tauben.length === 25 &&
     value.tauben.every(isTaube)
