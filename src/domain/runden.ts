@@ -10,6 +10,9 @@ export function getRundenPreise(runde: Runde): RundenPreise {
 }
 
 export function getSchuetzenPreisCent(runde: Runde, schuetze: Schuetze): number {
+  if (isKostenlos(schuetze)) {
+    return 0;
+  }
   const rundenPreise = getRundenPreise(runde);
   return schuetze.gaststatus ? rundenPreise.gastCent : rundenPreise.mitgliedCent;
 }
