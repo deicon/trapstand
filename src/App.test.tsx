@@ -4,6 +4,7 @@ import { vi } from "vitest";
 import { App } from "./App";
 import { createRunde } from "./domain/runden";
 import { refreshPwa } from "./pwa/refresh";
+import { LocalDatenbestand } from "./storage/datenbestand";
 
 vi.mock("./pwa/refresh", () => ({
   refreshPwa: vi.fn(() => Promise.resolve())
@@ -1089,5 +1090,34 @@ describe("Schiessleiter freirunde", () => {
 
     const kostenlosCheckbox = screen.getByRole("checkbox", { name: /leo ist kostenlos/i });
     expect(kostenlosCheckbox).toBeChecked();
+  });
+});
+
+describe("RundenListe kostenlos", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    localStorage.clear();
+  });
+
+  it("does not count kostenlos shooters as unbezahlt", () => {
+    const store = new LocalDatenbestand();
+    let runde = createRunde({
+      id: "r1",
+      rundenzeit: "2026-07-05T10:00",
+      schiessleiter: "Leiter",
+      schuetzenNamen: ["Bernd"]
+    });
+    runde = {
+      ...runde,
+      rotte: runde.rotte.map((schuetze) => ({
+        ...schuetze,
+        kostenlos: true,
+        tauben: schuetze.tauben.map((taube) => ({ ...taube, status: "getroffen" as const }))
+      }))
+    };
+    store.save(runde);
+
+    render(<App />);
+    expect(screen.getByText(/0 unbezahlt/i)).toBeInTheDocument();
   });
 });

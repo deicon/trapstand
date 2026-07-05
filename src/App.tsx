@@ -530,7 +530,7 @@ interface RundenListItemProps {
 
 function RundenListItem({ runde, onOpen, onSoftDelete }: RundenListItemProps) {
   const gaeste = runde.rotte.filter((schuetze) => schuetze.gaststatus).length;
-  const offen = runde.rotte.filter((schuetze) => !schuetze.zahlungsstatus).length;
+  const offen = runde.rotte.filter((schuetze) => !schuetze.kostenlos && !schuetze.zahlungsstatus).length;
   const namen = runde.rotte.map((schuetze) => schuetze.name || "Unbenannt").join(", ");
   const statusLabel = runde.gesperrt ? "Gesperrt" : rundenStatus(runde) === "vollstaendig" ? "Vollstaendig" : null;
 
