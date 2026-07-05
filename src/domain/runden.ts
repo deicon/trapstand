@@ -5,6 +5,15 @@ export const DEFAULT_PREISE: RundenPreise = {
   gastCent: 800
 };
 
+export function getRundenPreise(runde: Runde): RundenPreise {
+  return runde.preise ?? DEFAULT_PREISE;
+}
+
+export function getSchuetzenPreisCent(runde: Runde, schuetze: Schuetze): number {
+  const rundenPreise = getRundenPreise(runde);
+  return schuetze.gaststatus ? rundenPreise.gastCent : rundenPreise.mitgliedCent;
+}
+
 export interface CreateRundeInput {
   id: string;
   rundenzeit: string;

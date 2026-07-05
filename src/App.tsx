@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import type { GespeicherterSchuetze, Runde, RundenPreise, Schuetze, Taubenstatus } from "./domain/model";
 import {
-  DEFAULT_PREISE,
   addSchuetze,
   createEntwurf,
   cumulativeErgebnisse,
   dayKey,
+  getRundenPreise,
+  getSchuetzenPreisCent,
   hasRundeneintraege,
   removeSchuetze,
   rundenStatus,
@@ -990,14 +991,6 @@ function normalizeNameKey(name: string): string {
   return name.trim().toLocaleLowerCase();
 }
 
-function getRundenPreise(runde: Runde): RundenPreise {
-  return runde.preise ?? DEFAULT_PREISE;
-}
-
-function getSchuetzenPreisCent(runde: Runde, schuetze: Schuetze): number {
-  const rundenPreise = getRundenPreise(runde);
-  return schuetze.gaststatus ? rundenPreise.gastCent : rundenPreise.mitgliedCent;
-}
 
 function getEingenommenCent(runde: Runde): number {
   return runde.rotte.reduce((sum, schuetze) => sum + (schuetze.zahlungsstatus ? getSchuetzenPreisCent(runde, schuetze) : 0), 0);
