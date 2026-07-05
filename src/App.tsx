@@ -1190,6 +1190,7 @@ function RundenEditor({ runden, schuetzen, recentSchuetzen, runde, onBack, onPri
             <tr>
               <th>Schuetze</th>
               <th>Gast</th>
+              <th>Kostenlos</th>
               <th>Bezahlt</th>
               <th>Aktion</th>
             </tr>
@@ -1255,8 +1256,26 @@ function RundenEditor({ runden, schuetzen, recentSchuetzen, runde, onBack, onPri
                   <label className="compact-check">
                     <input
                       type="checkbox"
-                      checked={schuetze.zahlungsstatus}
+                      checked={schuetze.kostenlos}
                       disabled={ergebnisseLocked}
+                      onChange={(event) =>
+                        onChange(
+                          updateSchuetze(runde, schuetze.id, {
+                            kostenlos: event.target.checked,
+                            zahlungsstatus: event.target.checked ? false : schuetze.zahlungsstatus
+                          })
+                        )
+                      }
+                    />
+                    <span>{(schuetze.name || `Schuetze ${schuetzeIndex + 1}`)} ist kostenlos</span>
+                  </label>
+                </td>
+                <td>
+                  <label className="compact-check">
+                    <input
+                      type="checkbox"
+                      checked={schuetze.zahlungsstatus}
+                      disabled={ergebnisseLocked || schuetze.kostenlos}
                       onChange={(event) =>
                         onChange(updateSchuetze(runde, schuetze.id, { zahlungsstatus: event.target.checked }))
                       }

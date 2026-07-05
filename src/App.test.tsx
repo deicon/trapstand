@@ -1039,3 +1039,34 @@ describe("Trapstand app", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });
+
+describe("RundenEditor kostenlos", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    localStorage.clear();
+  });
+
+  it("shows Kostenlos checkbox", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /neue runde/i }));
+    expect(screen.getByRole("checkbox", { name: /ist kostenlos/i })).toBeInTheDocument();
+  });
+
+  it("unchecks Bezahlt when Kostenlos is checked", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /neue runde/i }));
+
+    const nameInput = screen.getByLabelText(/name schuetze 1/i);
+    fireEvent.change(nameInput, { target: { value: "Anna" } });
+
+    const bezahltCheckbox = screen.getByRole("checkbox", { name: /hat bezahlt/i });
+    fireEvent.click(bezahltCheckbox);
+    expect(bezahltCheckbox).toBeChecked();
+
+    const kostenlosCheckbox = screen.getByRole("checkbox", { name: /ist kostenlos/i });
+    fireEvent.click(kostenlosCheckbox);
+    expect(kostenlosCheckbox).toBeChecked();
+    expect(bezahltCheckbox).not.toBeChecked();
+    expect(bezahltCheckbox).toBeDisabled();
+  });
+});
