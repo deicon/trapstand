@@ -1,5 +1,6 @@
 import {
   createRunde,
+  createSchuetze,
   hasRundeneintraege,
   isEntwurf,
   isGeloescht,
@@ -127,5 +128,12 @@ describe("Runden domain", () => {
 
     expect(isGeloescht({ ...normal, geloescht: true })).toBe(true);
     expect(isGeloescht({ ...normal, geloescht: false })).toBe(false);
+  });
+});
+
+describe("createSchuetze", () => {
+  it("initializes kostenlos to false", () => {
+    const schuetze = createSchuetze("Max", 1);
+    expect(schuetze.kostenlos).toBe(false);
   });
 });

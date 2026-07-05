@@ -10,6 +10,7 @@ export interface Schuetze {
   name: string;
   gaststatus: boolean;
   zahlungsstatus: boolean;
+  kostenlos: boolean;
   tauben: Taube[];
 }
 

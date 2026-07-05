@@ -45,6 +45,7 @@ export function createSchuetze(name: string, position: number, id = `schuetze-${
     name,
     gaststatus: false,
     zahlungsstatus: false,
+    kostenlos: false,
     tauben: createTauben()
   };
 }
