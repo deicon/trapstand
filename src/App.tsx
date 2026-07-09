@@ -1588,11 +1588,6 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
         <button onClick={onEnd}>Runde beenden</button>
       </div>
 
-      <div className="quick-score-actions" aria-label="Schnellerfassung">
-        <button className="quick-score quick-score-hit" disabled={inputsDisabled || !activeCursor} onClick={() => recordActive("getroffen")}>Treffer</button>
-        <button className="quick-score quick-score-miss" disabled={inputsDisabled || !activeCursor} onClick={() => recordActive("verfehlt")}>Gefehlt</button>
-      </div>
-
       {activeCursor?.taube === 25 && <div className="last-round-warning">Letzte Runde beginnt!</div>}
 
       {isPhoneWidth && (
@@ -1652,6 +1647,11 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="quick-score-actions" aria-label="Schnellerfassung">
+        <button className="quick-score quick-score-hit" disabled={inputsDisabled || !activeCursor} onClick={() => recordActive("getroffen")}>Treffer</button>
+        <button className="quick-score quick-score-miss" disabled={inputsDisabled || !activeCursor} onClick={() => recordActive("verfehlt")}>Gefehlt</button>
       </div>
 
       {safetyPending && (
