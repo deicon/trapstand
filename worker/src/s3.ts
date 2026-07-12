@@ -12,8 +12,35 @@ export class S3Client {
     return `${hex}/trapstand.json`;
   }
 
+  async liveObjectKey(liveToken: string): Promise<string> {
+    const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(liveToken));
+    const hex = Array.from(new Uint8Array(hash))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    return `live/${hex}.json`;
+  }
+
   async put(readToken: string, body: string): Promise<Response> {
     const key = await this.objectKey(readToken);
+    return this.putObject(key, body);
+  }
+
+  async get(readToken: string): Promise<Response> {
+    const key = await this.objectKey(readToken);
+    return this.getObject(key);
+  }
+
+  async putLive(liveToken: string, body: string): Promise<Response> {
+    const key = await this.liveObjectKey(liveToken);
+    return this.putObject(key, body);
+  }
+
+  async getLive(liveToken: string): Promise<Response> {
+    const key = await this.liveObjectKey(liveToken);
+    return this.getObject(key);
+  }
+
+  private async putObject(key: string, body: string): Promise<Response> {
     const url = `${this.env.S3_ENDPOINT}/${this.env.S3_BUCKET}/${key}`;
     const signer = new AwsV4Signer({
       url,
@@ -28,8 +55,7 @@ export class S3Client {
     return fetch(signed);
   }
 
-  async get(readToken: string): Promise<Response> {
-    const key = await this.objectKey(readToken);
+  private async getObject(key: string): Promise<Response> {
     const url = `${this.env.S3_ENDPOINT}/${this.env.S3_BUCKET}/${key}`;
     const signer = new AwsV4Signer({
       url,

@@ -1,15 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { syncNow, isWorkerReachable, triggerSyncIfNeeded, restoreFromCloud } from "./sync";
+import { syncNow, isWorkerReachable, triggerSyncIfNeeded, restoreFromCloud, publishLiveRound } from "./sync";
 import { loadSyncSettings, saveSyncSettings, type SyncSettings } from "./settings";
 import * as pending from "./pending";
 import * as retry from "./retry";
 import { encryptBackup } from "./crypto";
+import type { Runde } from "../domain/model";
 
 const settings: SyncSettings = {
   enabled: true,
   workerUrl: "https://trapstand.example.com",
   writeToken: "write-secret",
   readToken: "read-secret",
+  liveToken: "live-secret",
   password: "sicheres-passwort",
   rememberPassword: true,
   intervalMinutes: 5
@@ -150,6 +152,35 @@ describe("restoreFromCloud", () => {
   it("throws when sync is disabled", async () => {
     saveSyncSettings({ ...settings, enabled: false });
     await expect(restoreFromCloud()).rejects.toThrow("nicht aktiviert");
+  });
+});
+
+describe("publishLiveRound", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    saveSyncSettings(settings);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("publishes active round to worker", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 204 });
+    globalThis.fetch = fetchMock;
+    const runde = { id: "runde-1", rundenzeit: "2026-07-12T10:00:00" } as Runde;
+    await publishLiveRound(runde);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const url = fetchMock.mock.calls[0][0] as string;
+    expect(url).toBe("https://trapstand.example.com/live");
+  });
+
+  it("does nothing when live token is missing", async () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock;
+    saveSyncSettings({ ...settings, liveToken: "" });
+    await publishLiveRound({ id: "runde-1" } as Runde);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

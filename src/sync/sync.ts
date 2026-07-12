@@ -1,4 +1,4 @@
-import type { Datenbestand } from "../domain/model";
+import type { Datenbestand, Runde } from "../domain/model";
 import { importBackupJson } from "../export/backup";
 import { decryptBackup, encryptBackup, type EncryptedBackup } from "./crypto";
 import { clearPending, isPending } from "./pending";
@@ -65,6 +65,24 @@ export async function restoreFromCloud(): Promise<Datenbestand> {
   const encrypted = await fetchBackup(settings);
   const json = await decryptBackup(encrypted, settings.password);
   return importBackupJson(json);
+}
+
+export async function publishLiveRound(runde: Runde): Promise<void> {
+  const settings = loadSyncSettings();
+  if (!settings || !settings.enabled || !settings.liveToken) {
+    return;
+  }
+  const response = await fetch(`${settings.workerUrl}/live`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${settings.writeToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(runde)
+  });
+  if (!response.ok) {
+    throw new Error(`Live-Publish fehlgeschlagen: ${response.status}`);
+  }
 }
 
 export async function isWorkerReachable(): Promise<boolean> {

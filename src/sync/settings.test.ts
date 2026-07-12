@@ -16,6 +16,7 @@ describe("settings", () => {
       workerUrl: "https://trapstand.example.com",
       writeToken: "write-secret",
       readToken: "read-secret",
+      liveToken: "live-secret",
       password: "sicheres-passwort",
       rememberPassword: true,
       intervalMinutes: 5

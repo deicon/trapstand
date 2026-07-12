@@ -13,6 +13,7 @@ export function CloudSyncDialog({ onClose, onRestore, onSyncNow }: Props) {
   const [workerUrl, setWorkerUrl] = useState(existing?.workerUrl ?? "");
   const [writeToken, setWriteToken] = useState(existing?.writeToken ?? "");
   const [readToken, setReadToken] = useState(existing?.readToken ?? "");
+  const [liveToken, setLiveToken] = useState(existing?.liveToken ?? "");
   const [password, setPassword] = useState(existing?.password ?? "");
   const [rememberPassword, setRememberPassword] = useState(existing?.rememberPassword ?? true);
   const [intervalMinutes, setIntervalMinutes] = useState(existing?.intervalMinutes ?? 5);
@@ -24,6 +25,7 @@ export function CloudSyncDialog({ onClose, onRestore, onSyncNow }: Props) {
       workerUrl: workerUrl.trim(),
       writeToken: writeToken.trim(),
       readToken: readToken.trim(),
+      liveToken: liveToken.trim(),
       password: rememberPassword ? password : "",
       rememberPassword,
       intervalMinutes
@@ -68,6 +70,15 @@ export function CloudSyncDialog({ onClose, onRestore, onSyncNow }: Props) {
               type="text"
               value={readToken}
               onChange={(event) => setReadToken(event.target.value)}
+            />
+          </label>
+          <label>
+            Live-Token
+            <input
+              type="text"
+              value={liveToken}
+              onChange={(event) => setLiveToken(event.target.value)}
+              placeholder="fuer Zuschauer-Tablet"
             />
           </label>
           <label>

@@ -5,6 +5,7 @@ export interface SyncSettings {
   workerUrl: string;
   writeToken: string;
   readToken: string;
+  liveToken: string;
   password: string;
   rememberPassword: boolean;
   intervalMinutes: number;
@@ -37,6 +38,7 @@ function isSyncSettings(value: unknown): value is SyncSettings {
     typeof (value as SyncSettings).workerUrl === "string" &&
     typeof (value as SyncSettings).writeToken === "string" &&
     typeof (value as SyncSettings).readToken === "string" &&
+    typeof (value as SyncSettings).liveToken === "string" &&
     typeof (value as SyncSettings).password === "string" &&
     typeof (value as SyncSettings).rememberPassword === "boolean" &&
     typeof (value as SyncSettings).intervalMinutes === "number"

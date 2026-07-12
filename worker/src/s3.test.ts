@@ -6,6 +6,7 @@ describe("S3Client objectKey", () => {
   const env: Env = {
     CLUB_WRITE_TOKEN: "write-secret",
     CLUB_READ_TOKEN: "read-secret",
+    LIVE_TOKEN: "live-secret",
     S3_ENDPOINT: "https://s3.example.com",
     S3_REGION: "nbg1",
     S3_BUCKET: "trapstand",

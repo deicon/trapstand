@@ -23,7 +23,7 @@ import { exportRundenCsv } from "./export/csv";
 import { refreshPwa } from "./pwa/refresh";
 import { CloudSyncDialog } from "./sync/CloudSyncDialog";
 import { loadSyncSettings } from "./sync/settings";
-import { restoreFromCloud, syncNow, triggerSyncIfNeeded } from "./sync/sync";
+import { publishLiveRound, restoreFromCloud, syncNow, triggerSyncIfNeeded } from "./sync/sync";
 import { LocalDatenbestand } from "./storage/datenbestand";
 import "./styles.css";
 
@@ -97,6 +97,20 @@ export function App() {
       window.clearInterval(intervalId);
     };
   }, [syncConfigKey]);
+
+  useEffect(() => {
+    if (!activeRunde || view !== "capture") {
+      return undefined;
+    }
+
+    void publishLiveRound(activeRunde);
+
+    const intervalId = window.setInterval(() => {
+      void publishLiveRound(activeRunde);
+    }, 10_000);
+
+    return () => window.clearInterval(intervalId);
+  }, [activeRunde, view]);
 
   function refreshRunden() {
     setRunden(store.list());
