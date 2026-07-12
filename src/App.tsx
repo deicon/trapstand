@@ -18,6 +18,7 @@ import {
   setTaubenstatus,
   updateSchuetze
 } from "./domain/runden";
+import QRCode from "qrcode";
 import { exportBackupJson, importBackupJson } from "./export/backup";
 import { exportRundenCsv } from "./export/csv";
 import { refreshPwa } from "./pwa/refresh";
@@ -1602,6 +1603,8 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
   const [taubenPage, setTaubenPage] = useState(0);
   const [manualCursor, setManualCursor] = useState<CaptureCursor | null>(null);
   const [safetyPending, setSafetyPending] = useState(false);
+  const [showLiveQr, setShowLiveQr] = useState(false);
+  const [liveQrDataUrl, setLiveQrDataUrl] = useState<string | null>(null);
   const taubenPageSize = isPhoneWidth ? 5 : 25;
   const taubenPageCount = Math.ceil(25 / taubenPageSize);
   const activeTaubenPage = Math.min(taubenPage, taubenPageCount - 1);
@@ -1626,6 +1629,16 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
 
     setTaubenPage(Math.floor((activeCursor.taube - 1) / taubenPageSize));
   }, [activeCursor?.taube, taubenPageSize]);
+
+  useEffect(() => {
+    const settings = loadSyncSettings();
+    if (!settings || !settings.enabled || !settings.liveToken) {
+      setLiveQrDataUrl(null);
+      return;
+    }
+    const url = `${settings.workerUrl}/live?token=${encodeURIComponent(settings.liveToken)}`;
+    void QRCode.toDataURL(url, { width: 240, margin: 2, errorCorrectionLevel: "M" }).then(setLiveQrDataUrl);
+  }, []);
 
   function recordActive(status: Exclude<Taubenstatus, "offen">) {
     if (!activeCursor || inputsDisabled) {
@@ -1663,9 +1676,25 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
     <main className="capture-shell">
       <div className="capture-toolbar">
         <button onClick={onEnd}>Runde beenden</button>
+        {liveQrDataUrl && (
+          <button className="quiet-button" onClick={() => setShowLiveQr(true)}>Live QR-Code</button>
+        )}
       </div>
 
       {activeCursor?.taube === 25 && <div className="last-round-warning">Letzte Runde beginnt!</div>}
+
+      {showLiveQr && liveQrDataUrl && (
+        <div className="dialog-backdrop" onClick={() => setShowLiveQr(false)}>
+          <div className="dialog-panel" role="dialog" aria-modal="true" aria-label="Live QR-Code" onClick={(event) => event.stopPropagation()}>
+            <h2>Live-Runde beobachten</h2>
+            <p>Scanne den QR-Code mit einem Zuschauer-Tablet oder Smartphone.</p>
+            <img src={liveQrDataUrl} alt="QR-Code fuer Live-Runde" className="live-qr-code" />
+            <div className="dialog-actions">
+              <button onClick={() => setShowLiveQr(false)}>Schliessen</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isPhoneWidth && (
         <div className="tauben-pager" aria-label="Tauben Navigation">

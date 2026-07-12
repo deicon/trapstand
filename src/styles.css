@@ -975,3 +975,10 @@ th:first-child {
 .sync-checkbox input {
   width: auto;
 }
+
+.live-qr-code {
+  display: block;
+  margin: 1rem auto;
+  max-width: 100%;
+  width: 240px;
+}
