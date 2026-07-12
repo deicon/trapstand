@@ -51,6 +51,12 @@ export function App() {
 
   const activeRunde = useMemo(() => runden.find((runde) => runde.id === activeId), [activeId, runden]);
 
+  function publishActiveRound(rundeToPublish: Runde | undefined = activeRunde) {
+    if (rundeToPublish && navigator.onLine) {
+      void publishLiveRound(rundeToPublish);
+    }
+  }
+
   useEffect(() => {
     if (store.hasPreise()) {
       return;
@@ -104,10 +110,10 @@ export function App() {
       return undefined;
     }
 
-    void publishLiveRound(activeRunde);
+    publishActiveRound(activeRunde);
 
     const intervalId = window.setInterval(() => {
-      void publishLiveRound(activeRunde);
+      publishActiveRound(activeRunde);
     }, 10_000);
 
     return () => window.clearInterval(intervalId);
@@ -1629,6 +1635,16 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
 
     setTaubenPage(Math.floor((activeCursor.taube - 1) / taubenPageSize));
   }, [activeCursor?.taube, taubenPageSize]);
+
+  function publishActiveRound(rundeToPublish: Runde | undefined = runde) {
+    if (rundeToPublish && navigator.onLine) {
+      void publishLiveRound(rundeToPublish);
+    }
+  }
+
+  useEffect(() => {
+    publishActiveRound();
+  }, [runde]);
 
   useEffect(() => {
     const settings = loadSyncSettings();
