@@ -27,6 +27,13 @@ describe("worker routing", () => {
     expect(response.status).toBe(404);
   });
 
+  it("returns HTML for /rangliste", async () => {
+    const request = new Request("https://trapstand.example.com/rangliste?token=read-secret");
+    const response = await worker.fetch(request, env);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/html");
+  });
+
   it("returns pong for /ping", async () => {
     const request = new Request("https://trapstand.example.com/ping");
     const response = await worker.fetch(request, env);

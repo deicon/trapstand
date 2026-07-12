@@ -1,5 +1,6 @@
 import type { Datenbestand, GespeicherterSchuetze, Runde, RundenPreise } from "../domain/model";
 import { DEFAULT_PREISE, isVollstaendigeRunde } from "../domain/runden";
+import { markPending } from "../sync/pending";
 
 export class LocalDatenbestand {
   constructor(private readonly key = "trapstand:datenbestand") {}
@@ -152,6 +153,7 @@ export class LocalDatenbestand {
 
   private write(datenbestand: Datenbestand): void {
     localStorage.setItem(this.key, JSON.stringify(datenbestand));
+    markPending();
   }
 }
 

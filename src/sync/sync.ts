@@ -1,7 +1,9 @@
 import { encryptBackup, type EncryptedBackup } from "./crypto";
-import { clearPending } from "./pending";
-import { clearConsecutiveErrors } from "./retry";
+import { clearPending, isPending } from "./pending";
+import { clearConsecutiveErrors, hasReachedMaxErrors, isBackoffActive, recordError } from "./retry";
 import { loadSyncSettings, type SyncSettings } from "./settings";
+
+let syncInProgress = false;
 
 export async function syncNow(backupJson: string): Promise<void> {
   const settings = loadSyncSettings();
@@ -25,6 +27,29 @@ export async function syncNow(backupJson: string): Promise<void> {
   }
   clearPending();
   clearConsecutiveErrors();
+}
+
+export async function triggerSyncIfNeeded(backupJson: string): Promise<void> {
+  const settings = loadSyncSettings();
+  if (!settings || !settings.enabled || settings.intervalMinutes === 0) {
+    return;
+  }
+  if (!navigator.onLine || !isPending()) {
+    return;
+  }
+  if (syncInProgress || hasReachedMaxErrors() || isBackoffActive()) {
+    return;
+  }
+
+  syncInProgress = true;
+  try {
+    await syncNow(backupJson);
+  } catch (error) {
+    recordError();
+    throw error;
+  } finally {
+    syncInProgress = false;
+  }
 }
 
 export async function isWorkerReachable(): Promise<boolean> {

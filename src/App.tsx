@@ -21,6 +21,9 @@ import {
 import { exportBackupJson, importBackupJson } from "./export/backup";
 import { exportRundenCsv } from "./export/csv";
 import { refreshPwa } from "./pwa/refresh";
+import { CloudSyncDialog } from "./sync/CloudSyncDialog";
+import { loadSyncSettings } from "./sync/settings";
+import { syncNow, triggerSyncIfNeeded } from "./sync/sync";
 import { LocalDatenbestand } from "./storage/datenbestand";
 import "./styles.css";
 
@@ -42,6 +45,8 @@ export function App() {
   const [printDay, setPrintDay] = useState<string | null>(null);
   const [paymentDay, setPaymentDay] = useState<string | null>(null);
   const [showMainSettings, setShowMainSettings] = useState(false);
+  const [showCloudSync, setShowCloudSync] = useState(false);
+  const [syncConfigKey, setSyncConfigKey] = useState(0);
 
   const activeRunde = useMemo(() => runden.find((runde) => runde.id === activeId), [activeId, runden]);
 
@@ -68,6 +73,30 @@ export function App() {
     const timeoutId = window.setTimeout(() => setMessage(""), 4000);
     return () => window.clearTimeout(timeoutId);
   }, [message]);
+
+  useEffect(() => {
+    const settings = loadSyncSettings();
+    if (!settings || !settings.enabled || settings.intervalMinutes === 0) {
+      return undefined;
+    }
+
+    const run = () => {
+      void triggerSyncIfNeeded(JSON.stringify(store.export()));
+    };
+
+    run();
+
+    const handleOnline = () => run();
+    window.addEventListener("online", handleOnline);
+
+    const intervalMs = Math.max(settings.intervalMinutes * 60 * 1000, 10_000);
+    const intervalId = window.setInterval(run, intervalMs);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.clearInterval(intervalId);
+    };
+  }, [syncConfigKey]);
 
   function refreshRunden() {
     setRunden(store.list());
@@ -267,6 +296,15 @@ export function App() {
                 </button>
                 <button
                   role="menuitem"
+                  onClick={() => {
+                    setShowMainSettings(false);
+                    setShowCloudSync(true);
+                  }}
+                >
+                  Cloud-Sync
+                </button>
+                <button
+                  role="menuitem"
                   className="quiet-button"
                   onClick={() => {
                     setShowMainSettings(false);
@@ -365,6 +403,17 @@ export function App() {
               runden={runden.filter((runde) => dayKey(runde) === paymentDay)}
               onTogglePaid={(name, paid) => markShooterPaidForDay(paymentDay, name, paid)}
               onClose={() => setPaymentDay(null)}
+            />
+          )}
+          {showCloudSync && (
+            <CloudSyncDialog
+              onClose={() => {
+                setShowCloudSync(false);
+                setSyncConfigKey((key) => key + 1);
+              }}
+              onSyncNow={() => {
+                void syncNow(JSON.stringify(store.export()));
+              }}
             />
           )}
         </>
