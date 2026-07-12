@@ -34,6 +34,7 @@ export interface Runde {
   sicherheitBestaetigt?: boolean;
   preise?: RundenPreise;
   geloescht?: boolean;
+  zuletztBearbeitet?: string;
   rotte: Schuetze[];
 }
 

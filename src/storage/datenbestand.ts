@@ -77,15 +77,16 @@ export class LocalDatenbestand {
   save(runde: Runde): void {
     const datenbestand = this.read();
     const existingIndex = datenbestand.runden.findIndex((existing) => existing.id === runde.id);
+    const rundeWithTimestamp = { ...runde, zuletztBearbeitet: toLocalIsoString(new Date()) };
     const runden =
       existingIndex >= 0
-        ? datenbestand.runden.map((existing) => (existing.id === runde.id ? runde : existing))
-        : [...datenbestand.runden, runde];
+        ? datenbestand.runden.map((existing) => (existing.id === runde.id ? rundeWithTimestamp : existing))
+        : [...datenbestand.runden, rundeWithTimestamp];
 
     this.write({
       ...datenbestand,
       runden,
-      schuetzen: shouldSyncSchuetzen(runde) ? upsertSchuetzen(datenbestand.schuetzen ?? [], runde) : (datenbestand.schuetzen ?? [])
+      schuetzen: shouldSyncSchuetzen(rundeWithTimestamp) ? upsertSchuetzen(datenbestand.schuetzen ?? [], rundeWithTimestamp) : (datenbestand.schuetzen ?? [])
     });
   }
 
@@ -152,6 +153,15 @@ export class LocalDatenbestand {
   private write(datenbestand: Datenbestand): void {
     localStorage.setItem(this.key, JSON.stringify(datenbestand));
   }
+}
+
+function toLocalIsoString(date: Date): string {
+  const offset = -date.getTimezoneOffset();
+  const offsetHours = Math.floor(Math.abs(offset) / 60);
+  const offsetMinutes = Math.abs(offset) % 60;
+  const sign = offset >= 0 ? "+" : "-";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}${sign}${pad(offsetHours)}:${pad(offsetMinutes)}`;
 }
 
 function normalizePreise(value: unknown): RundenPreise {
