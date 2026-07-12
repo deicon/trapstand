@@ -123,6 +123,11 @@ export class LocalDatenbestand {
     return this.read();
   }
 
+  newestTimestamp(): string | null {
+    const datenbestand = this.read();
+    return newestTimestamp(datenbestand);
+  }
+
   private read(): Datenbestand {
     const raw = localStorage.getItem(this.key);
     if (!raw) {
@@ -155,6 +160,22 @@ export class LocalDatenbestand {
     localStorage.setItem(this.key, JSON.stringify(datenbestand));
     markPending();
   }
+}
+
+export function newestTimestamp(datenbestand: Datenbestand): string | null {
+  const timestamps: string[] = [];
+  if (datenbestand.zuletztBearbeitet) {
+    timestamps.push(datenbestand.zuletztBearbeitet);
+  }
+  for (const runde of datenbestand.runden) {
+    if (runde.zuletztBearbeitet) {
+      timestamps.push(runde.zuletztBearbeitet);
+    }
+  }
+  if (timestamps.length === 0) {
+    return null;
+  }
+  return timestamps.sort((a, b) => b.localeCompare(a))[0];
 }
 
 function toLocalIsoString(date: Date): string {

@@ -976,6 +976,22 @@ th:first-child {
   width: auto;
 }
 
+.cloud-sync-form input[readonly],
+.cloud-sync-form select:disabled {
+  background: #f1f5f9;
+  cursor: not-allowed;
+}
+
+.cloud-sync-actions {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.cloud-sync-dialog {
+  max-width: 520px;
+  width: min(100%, 520px);
+}
+
 .live-qr-code {
   display: block;
   margin: 1rem auto;

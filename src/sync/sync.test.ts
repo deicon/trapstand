@@ -28,21 +28,47 @@ describe("syncNow", () => {
   });
 
   it("uploads encrypted backup and clears pending", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 204 });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 404 })
+      .mockResolvedValueOnce({ ok: true, status: 204 });
     globalThis.fetch = fetchMock;
     pending.markPending();
     await syncNow(JSON.stringify({ runden: [] }));
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const url = fetchMock.mock.calls[0][0] as string;
-    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const url = fetchMock.mock.calls[1][0] as string;
+    const init = fetchMock.mock.calls[1][1] as RequestInit;
     expect(url).toBe("https://trapstand.example.com/sync");
     expect(init.method).toBe("POST");
     expect((init.headers as Record<string, string>)["Authorization"]).toBe("Bearer write-secret");
     expect(pending.isPending()).toBe(false);
   });
 
+  it("throws when cloud backup is newer", async () => {
+    const backup = JSON.stringify({ version: 1, runden: [{ id: "alt", rundenzeit: "2026-07-12T10:00:00", zuletztBearbeitet: "2026-07-12T12:00:00+02:00", schiessleiter: "X", rotte: [{ id: "s1", name: "A", gaststatus: false, zahlungsstatus: false, kostenlos: false, tauben: Array.from({ length: 25 }, (_, i) => ({ nummer: i + 1, status: "offen" })) }] }], schuetzen: [], preise: { mitgliedCent: 200, gastCent: 300 } });
+    const encrypted = await encryptBackup(backup, settings.password);
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => encrypted });
+    await expect(syncNow(JSON.stringify({ version: 1, runden: [], schuetzen: [], preise: { mitgliedCent: 200, gastCent: 300 } }))).rejects.toThrow("Cloud-Backup ist neuer");
+  });
+
+  it("uploads when local backup is newer than cloud", async () => {
+    const cloudBackup = JSON.stringify({ version: 1, runden: [{ id: "alt", rundenzeit: "2026-07-12T10:00:00", zuletztBearbeitet: "2026-07-12T10:00:00+02:00", schiessleiter: "X", rotte: [{ id: "s1", name: "A", gaststatus: false, zahlungsstatus: false, kostenlos: false, tauben: Array.from({ length: 25 }, (_, i) => ({ nummer: i + 1, status: "offen" })) }] }], schuetzen: [], preise: { mitgliedCent: 200, gastCent: 300 } });
+    const encrypted = await encryptBackup(cloudBackup, settings.password);
+    const localBackup = JSON.stringify({ version: 1, runden: [{ id: "neu", rundenzeit: "2026-07-12T14:00:00", zuletztBearbeitet: "2026-07-12T14:00:00+02:00", schiessleiter: "X", rotte: [{ id: "s1", name: "A", gaststatus: false, zahlungsstatus: false, kostenlos: false, tauben: Array.from({ length: 25 }, (_, i) => ({ nummer: i + 1, status: "offen" })) }] }], schuetzen: [], preise: { mitgliedCent: 200, gastCent: 300 } });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => encrypted })
+      .mockResolvedValueOnce({ ok: true, status: 204 });
+    globalThis.fetch = fetchMock;
+    await syncNow(localBackup);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("throws on sync failure", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500 });
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 404 })
+      .mockResolvedValueOnce({ ok: false, status: 500 });
     await expect(syncNow(JSON.stringify({ runden: [] }))).rejects.toThrow("Sync fehlgeschlagen");
   });
 
@@ -70,11 +96,14 @@ describe("triggerSyncIfNeeded", () => {
   });
 
   it("syncs when pending and online", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 204 });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 404 })
+      .mockResolvedValueOnce({ ok: true, status: 204 });
     globalThis.fetch = fetchMock;
     pending.markPending();
     await triggerSyncIfNeeded(JSON.stringify({ runden: [] }));
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(pending.isPending()).toBe(false);
   });
 
@@ -114,7 +143,10 @@ describe("triggerSyncIfNeeded", () => {
   });
 
   it("records error on failure", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500 });
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 404 })
+      .mockResolvedValueOnce({ ok: false, status: 500 });
     pending.markPending();
     await expect(triggerSyncIfNeeded(JSON.stringify({ runden: [] }))).rejects.toThrow("Sync fehlgeschlagen");
     expect(retry.getConsecutiveErrors()).toBe(1);
