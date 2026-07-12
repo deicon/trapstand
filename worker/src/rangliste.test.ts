@@ -6,6 +6,7 @@ describe("ranglisteHtml", () => {
     const html = ranglisteHtml();
     expect(html).toContain("Trapstand Rangliste");
     expect(html).toContain("password-form");
-    expect(html).toContain("id=\"ranking\"");
+    expect(html).toContain("id=\"ranking-top\"");
+    expect(html).toContain("id=\"ranking-average\"");
   });
 });

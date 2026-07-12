@@ -24,6 +24,9 @@ export function ranglisteHtml(): string {
     .rank { width: 3rem; }
     .active-round { background: var(--card); padding: 1rem; border-radius: 8px; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
     .empty { color: var(--muted); text-align: center; padding: 2rem; }
+    .hint { color: var(--muted); font-size: 0.875rem; margin-top: 1rem; }
+    .two-col { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
+    @media (min-width: 720px) { .two-col { grid-template-columns: 1fr 1fr; } }
   </style>
 </head>
 <body>
@@ -36,15 +39,176 @@ export function ranglisteHtml(): string {
       </label>
       <button type="submit">Anzeigen</button>
       <p id="error" class="error"></p>
+      <p class="hint">Die Rangliste wird lokal im Browser entschlüsselt. Das Passwort verlässt das Gerät nicht.</p>
     </form>
     <div id="content" style="display:none;">
       <div id="active-round"></div>
-      <h2>Rangliste</h2>
-      <div id="ranking"></div>
+      <div class="two-col">
+        <section>
+          <h2>Rangliste Top Ergebnis</h2>
+          <div id="ranking-top"></div>
+        </section>
+        <section>
+          <h2>Rangliste Durchschnitt</h2>
+          <div id="ranking-average"></div>
+        </section>
+      </div>
     </div>
   </main>
   <script>
-    // Inline JS will be injected in Task 13
+    const readToken = new URLSearchParams(window.location.search).get('token');
+    const form = document.getElementById('password-form');
+    const content = document.getElementById('content');
+    const errorEl = document.getElementById('error');
+    const activeRoundEl = document.getElementById('active-round');
+    const rankingTopEl = document.getElementById('ranking-top');
+    const rankingAverageEl = document.getElementById('ranking-average');
+
+    if (!readToken) {
+      errorEl.textContent = 'Kein Token in der URL. Bitte den vollständigen Link verwenden.';
+    }
+
+    form.addEventListener('submit', async function (event) {
+      event.preventDefault();
+      errorEl.textContent = '';
+      try {
+        const password = document.getElementById('password').value;
+        const response = await fetch('./data?token=' + encodeURIComponent(readToken), { cache: 'no-store' });
+        if (!response.ok) throw new Error('Daten konnten nicht geladen werden.');
+        const encrypted = await response.json();
+        const json = await decryptBackup(encrypted, password);
+        const backup = JSON.parse(json);
+        render(backup);
+        form.style.display = 'none';
+        content.style.display = 'block';
+      } catch (error) {
+        errorEl.textContent = 'Falsches Passwort oder ungültige Daten.';
+      }
+    });
+
+    async function decryptBackup(encrypted, password) {
+      const salt = base64ToArrayBuffer(encrypted.salt);
+      const iv = base64ToArrayBuffer(encrypted.iv);
+      const ciphertext = base64ToArrayBuffer(encrypted.encrypted);
+      const key = await deriveKey(password, salt);
+      const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, ciphertext);
+      return new TextDecoder().decode(decrypted);
+    }
+
+    async function deriveKey(password, salt) {
+      const keyMaterial = await crypto.subtle.importKey(
+        'raw',
+        new TextEncoder().encode(password),
+        { name: 'PBKDF2' },
+        false,
+        ['deriveKey']
+      );
+      return crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt: salt, iterations: 100000, hash: 'SHA-256' },
+        keyMaterial,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['decrypt']
+      );
+    }
+
+    function base64ToArrayBuffer(base64) {
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return bytes.buffer;
+    }
+
+    function dayKey(rundenzeit) {
+      return rundenzeit ? rundenzeit.slice(0, 10) : '';
+    }
+
+    function todayKey() {
+      const today = new Date();
+      const pad = function (n) { return String(n).padStart(2, '0'); };
+      return today.getFullYear() + '-' + pad(today.getMonth() + 1) + '-' + pad(today.getDate());
+    }
+
+    function schuetzeErgebnis(schuetze) {
+      return schuetze.tauben.filter(function (t) { return t.status === 'getroffen'; }).length;
+    }
+
+    function isActiveRound(runde) {
+      if (runde.geloescht || runde.gesperrt) return false;
+      if (dayKey(runde.rundenzeit) !== todayKey()) return false;
+      return runde.rotte.some(function (s) {
+        return s.tauben.some(function (t) { return t.status === 'offen'; });
+      });
+    }
+
+    function renderActiveRound(runde) {
+      if (!runde) {
+        activeRoundEl.innerHTML = '';
+        return;
+      }
+      var html = '<div class="active-round"><h2>Aktive Runde</h2>';
+      html += '<p>' + runde.rundenzeit + ' · ' + (runde.schiessleiter || 'Schießleiter offen') + '</p>';
+      html += '<table><thead><tr><th>Schütze</th><th>Ergebnis</th></tr></thead><tbody>';
+      runde.rotte.forEach(function (s) {
+        html += '<tr><td>' + (s.name || 'Unbenannt') + (s.gaststatus ? ' (Gast)' : '') + '</td><td>' + schuetzeErgebnis(s) + ' / 25</td></tr>';
+      });
+      html += '</tbody></table></div>';
+      activeRoundEl.innerHTML = html;
+    }
+
+    function getRangliste(runden, schuetzen) {
+      var stats = {};
+      schuetzen = schuetzen || [];
+      schuetzen.forEach(function (s) {
+        stats[s.name.toLowerCase()] = { name: s.name, top: 0, summe: 0, count: 0 };
+      });
+      runden.forEach(function (runde) {
+        if (runde.geloescht) return;
+        runde.rotte.forEach(function (s) {
+          var name = (s.name || '').trim();
+          if (!name) return;
+          var key = name.toLowerCase();
+          var current = stats[key] || { name: name, top: 0, summe: 0, count: 0 };
+          var ergebnis = schuetzeErgebnis(s);
+          stats[key] = {
+            name: current.name,
+            top: Math.max(current.top, ergebnis),
+            summe: current.summe + ergebnis,
+            count: current.count + 1
+          };
+        });
+      });
+      return Object.values(stats).map(function (row) {
+        return { name: row.name, top: row.top, average: row.count > 0 ? row.summe / row.count : 0, count: row.count };
+      }).filter(function (row) { return row.count > 0; });
+    }
+
+    function renderRankingTable(rows, valueFn, valueHeader) {
+      if (rows.length === 0) return '<div class="empty">Keine Daten.</div>';
+      var html = '<table><thead><tr><th class="rank">Rang</th><th>Schütze</th><th>' + valueHeader + '</th><th>Runden</th></tr></thead><tbody>';
+      rows.forEach(function (row, index) {
+        html += '<tr><td>' + (index + 1) + '.</td><td>' + row.name + '</td><td>' + valueFn(row) + '</td><td>' + row.count + '</td></tr>';
+      });
+      html += '</tbody></table>';
+      return html;
+    }
+
+    function render(backup) {
+      var runden = backup.runden || [];
+      var active = runden.find(isActiveRound);
+      renderActiveRound(active);
+      var rangliste = getRangliste(runden, backup.schuetzen);
+      var topRanking = rangliste.slice().sort(function (a, b) {
+        return b.top - a.top || b.count - a.count || a.name.localeCompare(b.name);
+      });
+      var averageRanking = rangliste.slice().sort(function (a, b) {
+        return b.average - a.average || b.top - a.top || a.name.localeCompare(b.name);
+      });
+      rankingTopEl.innerHTML = renderRankingTable(topRanking, function (row) { return String(row.top); }, 'Top Ergebnis');
+      rankingAverageEl.innerHTML = renderRankingTable(averageRanking, function (row) { return row.average.toFixed(1); }, 'Durchschnitt');
+    }
   </script>
 </body>
 </html>`;
