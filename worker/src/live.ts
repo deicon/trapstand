@@ -74,7 +74,7 @@ export function liveHtml(token: string): string {
 
     async function load() {
       try {
-        const response = await fetch('./data?token=' + encodeURIComponent(token), { cache: 'no-store' });
+        const response = await fetch('/live/data?token=' + encodeURIComponent(token), { cache: 'no-store' });
         if (response.status === 404) {
           statusEl.textContent = 'Aktuell keine laufende Runde.';
           contentEl.innerHTML = '<div class="empty">Warte auf Daten vom Schützenstand …</div>';

@@ -51,6 +51,9 @@ describe("worker routing", () => {
     const response = await worker.fetch(request, env);
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/html");
+    const html = await response.text();
+    expect(html).toContain("/live/data?token=");
+    expect(html).not.toContain("fetch('./data?token=");
   });
 
   it("returns 401 for /live without token", async () => {
@@ -82,6 +85,27 @@ describe("worker routing", () => {
       headers: { Authorization: "Bearer read-secret", "Content-Type": "application/json" },
       body: JSON.stringify({ id: "runde-1" })
     });
+    const response = await worker.fetch(request, env);
+    expect(response.status).toBe(401);
+  });
+
+  it("returns live round data for /live/data with valid live token", async () => {
+    const livePayload = JSON.stringify({ id: "runde-live", rotte: [] });
+    globalThis.fetch = vi.fn().mockImplementation((url: string | URL) => {
+      const urlString = typeof url === "string" ? url : url.toString();
+      if (urlString.includes("/live/")) {
+        return Promise.resolve(new Response(livePayload, { status: 200, headers: { "Content-Type": "application/json" } }));
+      }
+      return Promise.resolve(new Response("Not found", { status: 404 }));
+    });
+    const request = new Request("https://trapstand.example.com/live/data?token=live-secret");
+    const response = await worker.fetch(request, env);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe(livePayload);
+  });
+
+  it("returns 401 for /live/data with invalid token", async () => {
+    const request = new Request("https://trapstand.example.com/live/data?token=wrong");
     const response = await worker.fetch(request, env);
     expect(response.status).toBe(401);
   });
