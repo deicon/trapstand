@@ -1,5 +1,6 @@
 import { extractToken, validateToken } from "./auth";
 import { corsHeaders, withCors } from "./cors";
+import { ranglisteHtml } from "./rangliste";
 import { S3Client } from "./s3";
 
 export interface Env {
@@ -62,6 +63,13 @@ export default {
           "Cache-Control": "no-store, no-cache, must-revalidate"
         }
       }), env, request);
+    }
+
+    if (url.pathname === "/rangliste") {
+      return new Response(ranglisteHtml(), {
+        status: 200,
+        headers: { "Content-Type": "text/html" }
+      });
     }
 
     return new Response("Not found", { status: 404 });
