@@ -38,7 +38,7 @@ export function CloudSyncDialog({ onClose, onRestore, onSyncNow }: Props) {
     <div className="dialog-backdrop">
       <div className="dialog-panel" role="dialog" aria-modal="true" aria-label="Cloud-Sync">
         <h2>Cloud-Sync</h2>
-        <form onSubmit={handleSubmit}>
+        <form className="cloud-sync-form" onSubmit={handleSubmit}>
           <label className="sync-checkbox">
             <input
               type="checkbox"
