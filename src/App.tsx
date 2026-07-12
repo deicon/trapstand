@@ -1636,8 +1636,14 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
       setLiveQrDataUrl(null);
       return;
     }
-    const url = `${settings.workerUrl}/live?token=${encodeURIComponent(settings.liveToken)}`;
-    void QRCode.toDataURL(url, { width: 240, margin: 2, errorCorrectionLevel: "M" }).then(setLiveQrDataUrl);
+    const workerUrl = settings.workerUrl.trim();
+    if (!/^https?:\/\//i.test(workerUrl)) {
+      setLiveQrDataUrl(null);
+      return;
+    }
+    const url = new URL("/live", workerUrl.replace(/\/$/, ""));
+    url.searchParams.set("token", settings.liveToken);
+    void QRCode.toDataURL(url.toString(), { width: 240, margin: 2, errorCorrectionLevel: "M" }).then(setLiveQrDataUrl);
   }, []);
 
   function recordActive(status: Exclude<Taubenstatus, "offen">) {
