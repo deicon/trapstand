@@ -982,3 +982,15 @@ th:first-child {
   max-width: 100%;
   width: 240px;
 }
+
+.live-qr-url {
+  background: #f1f5f9;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  margin: 0 auto 1rem;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  padding: 0.5rem;
+  text-align: center;
+  word-break: break-all;
+}
