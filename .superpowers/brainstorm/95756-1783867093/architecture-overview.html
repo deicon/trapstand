@@ -1,0 +1,75 @@
+<h2>Vorgeschlagene Sync-Architektur</h2>
+<p class="subtitle">Cloudflare Worker als Gateway, Hetzner S3 als Speicher, PWA bleibt offline-first</p>
+
+<div class="section">
+  <div class="mockup">
+    <div class="mockup-header">Systemübersicht</div>
+    <div class="mockup-body">
+      <div style="display: flex; flex-direction: column; gap: 1.5rem; font-family: sans-serif;">
+        <div style="border: 2px solid #4a90d9; border-radius: 8px; padding: 1rem; background: #f0f7ff;">
+          <strong>🎯 Erfassungs-Tablet (Schreibend)</strong>
+          <div style="margin-top: 0.5rem; color: #555;">Erfasst Runden → speichert lokal → sync bei Online-Erkennung</div>
+        </div>
+        <div style="text-align: center; color: #888;">POST /sync (verschlüsselter Backup-JSON)</div>
+        <div style="border: 2px solid #f5a623; border-radius: 8px; padding: 1rem; background: #fff8ed;">
+          <strong>☁️ Cloudflare Worker</strong>
+          <div style="margin-top: 0.5rem; color: #555;">Prüft Shared Secret · schreibt/liest S3 · liefert Ranglisten-HTML</div>
+        </div>
+        <div style="display: flex; gap: 1rem; justify-content: center; align-items: flex-start;">
+          <div style="text-align: center; color: #888;">GET /data</div>
+          <div style="border: 2px solid #7ed321; border-radius: 8px; padding: 1rem; background: #f4fbe9; min-width: 140px;">
+            <strong>🗄️ Hetzner S3</strong>
+            <div style="margin-top: 0.5rem; color: #555; font-size: 0.9rem;">1 verschlüsseltes Objekt pro Vereins-Token</div>
+          </div>
+          <div style="text-align: center; color: #888;">GET /rangliste</div>
+        </div>
+        <div style="display: flex; gap: 1rem; justify-content: center;">
+          <div style="border: 2px solid #bd10e0; border-radius: 8px; padding: 1rem; background: #f9f0fc; flex: 1;">
+            <strong>📱 Zuschauer-Tablet 1</strong>
+            <div style="margin-top: 0.5rem; color: #555; font-size: 0.9rem;">Zeigt aktive Runde (Polling 45 s)</div>
+          </div>
+          <div style="border: 2px solid #bd10e0; border-radius: 8px; padding: 1rem; background: #f9f0fc; flex: 1;">
+            <strong>🌐 Ranglisten-URL</strong>
+            <div style="margin-top: 0.5rem; color: #555; font-size: 0.9rem;">Vereinsmitglieder mit Passwort</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Datenfluss im Detail</h3>
+  <div class="mockup">
+    <div class="mockup-body">
+      <ol style="line-height: 1.8;">
+        <li><strong>Offline erfassen:</strong> Jede Taube wird weiterhin in <code>localStorage</code> gespeichert.</li>
+        <li><strong>Online erkannt:</strong> <code>navigator.onLine</code> + erfolgreicher Ping zum Worker.</li>
+        <li><strong>Sync auslösen:</strong> Tablet sendet den verschlüsselten Backup-JSON an <code>/sync</code>.</li>
+        <li><strong>Worker speichert:</strong> Entschlüsselung nicht nötig — S3 speichert den Blob AES-verschlüsselt.</li>
+        <li><strong>Zuschauer/Rangliste abrufen:</strong> GET <code>/data</code> liefert den aktuellen Blob zurück.</li>
+        <li><strong>Client entschlüsselt:</strong> Passwort wird clientseitig zu Schlüssel abgeleitet.</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Schlüssel-Entscheidung: Verschlüsselung</h3>
+  <div class="options" data-multiselect>
+    <div class="option" data-choice="client" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Client-seitige Verschlüsselung</h3>
+        <p>Passwort → PBKDF2 → AES-GCM. Worker sieht nur verschlüsselten Blob. S3 ist öffentlich unlesbar.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="server" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Server-seitige Verschlüsselung</h3>
+        <p>Worker verschlüsselt mit einem Geheimnis aus Workers Secrets. Einfacher für Clients, aber Worker kennt Klartext.</p>
+      </div>
+    </div>
+  </div>
+</div>

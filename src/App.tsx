@@ -722,11 +722,6 @@ function SchuetzenView({
     setEditName("");
   }
 
-  function isUsedInRunde(schuetze: GespeicherterSchuetze): boolean {
-    const key = normalizeNameKey(schuetze.name);
-    return runden.some((runde) => runde.rotte.some((entry) => normalizeNameKey(entry.name) === key));
-  }
-
   const pendingDeleteSchuetze = pendingDeleteId
     ? filteredSchuetzen.find((schuetze) => schuetze.id === pendingDeleteId)
     : undefined;
@@ -756,7 +751,6 @@ function SchuetzenView({
         <ul className="person-list">
           {filteredSchuetzen.map((schuetze) => {
             const isEditing = editingId === schuetze.id;
-            const isUsed = isUsedInRunde(schuetze);
             return (
               <li key={schuetze.id} className="person-row">
                 {isEditing ? (
@@ -799,15 +793,13 @@ function SchuetzenView({
                       >
                         Bearbeiten
                       </button>
-                      {!isUsed && (
-                        <button
-                          className="danger compact-button shooter-remove"
-                          aria-label={`${schuetze.name} löschen`}
-                          onClick={() => setPendingDeleteId(schuetze.id)}
-                        >
-                          ×
-                        </button>
-                      )}
+                      <button
+                        className="danger compact-button shooter-remove"
+                        aria-label={`${schuetze.name} löschen`}
+                        onClick={() => setPendingDeleteId(schuetze.id)}
+                      >
+                        ×
+                      </button>
                     </div>
                   </>
                 )}

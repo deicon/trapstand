@@ -1,0 +1,5 @@
+{"type":"server-started","port":52289,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:52289","screen_dir":"/Users/dieter/dev/projects/deicon/trapstand/.superpowers/brainstorm/95756-1783867093"}
+{"type":"screen-added","file":"/Users/dieter/dev/projects/deicon/trapstand/.superpowers/brainstorm/95756-1783867093/architecture-overview.html"}
+{"type":"screen-added","file":"/Users/dieter/dev/projects/deicon/trapstand/.superpowers/brainstorm/95756-1783867093/sync-strategy.html"}
+{"type":"screen-added","file":"/Users/dieter/dev/projects/deicon/trapstand/.superpowers/brainstorm/95756-1783867093/waiting.html"}
+{"type":"server-stopped","reason":"idle timeout"}

@@ -159,16 +159,8 @@ export class LocalDatenbestand {
   removeSchuetze(id: string): void {
     const datenbestand = this.read();
     const schuetzen = datenbestand.schuetzen ?? [];
-    const target = schuetzen.find((schuetze) => schuetze.id === id);
-    if (!target) {
+    if (!schuetzen.some((schuetze) => schuetze.id === id)) {
       throw new Error("Schuetze nicht gefunden.");
-    }
-
-    const isReferenced = datenbestand.runden.some((runde) =>
-      runde.rotte.some((schuetze) => normalizeNameKey(schuetze.name) === normalizeNameKey(target.name))
-    );
-    if (isReferenced) {
-      throw new Error(`Schuetze "${target.name}" ist in einer Runde enthalten und kann nicht geloescht werden.`);
     }
 
     this.write({ ...datenbestand, schuetzen: schuetzen.filter((schuetze) => schuetze.id !== id) });

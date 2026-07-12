@@ -246,7 +246,7 @@ describe("LocalDatenbestand", () => {
     expect(store.listSchuetzen()).toHaveLength(0);
   });
 
-  it("refuses to remove a global Schuetze that is referenced in a Runde", () => {
+  it("removes a global Schuetze even if referenced in a Runde", () => {
     const store = new LocalDatenbestand("test-store");
     const runde = createRunde({
       id: "runde-1",
@@ -259,8 +259,10 @@ describe("LocalDatenbestand", () => {
     const [anna] = store.listSchuetzen();
     expect(anna.name).toBe("Anna");
 
-    expect(() => store.removeSchuetze(anna.id)).toThrow(/kann nicht geloescht werden/i);
-    expect(store.listSchuetzen()).toHaveLength(1);
+    store.removeSchuetze(anna.id);
+
+    expect(store.listSchuetzen()).toHaveLength(0);
+    expect(store.list()).toHaveLength(1);
   });
 });
 

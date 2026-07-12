@@ -312,7 +312,7 @@ describe("Trapstand app", () => {
     await user.type(screen.getByLabelText(/schützen filtern/i), "ann");
     expect(screen.getByText("Anna")).toBeInTheDocument();
     expect(screen.queryByText("Bernd")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /anna löschen/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /anna löschen/i })).toBeInTheDocument();
 
     await user.clear(screen.getByLabelText(/schützen filtern/i));
     await user.click(screen.getByRole("button", { name: /claudia löschen/i }));
@@ -320,11 +320,9 @@ describe("Trapstand app", () => {
     await user.click(screen.getByRole("button", { name: /^löschen$/i }));
     expect(screen.queryByText("Claudia")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /zurück zur liste/i }));
-    await user.click(screen.getByRole("button", { name: /neue runde/i }));
-    expect(screen.queryByRole("button", { name: /^claudia$/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^bernd$/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^anna$/i })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /anna löschen/i }));
+    await user.click(screen.getByRole("button", { name: /^löschen$/i }));
+    expect(screen.queryByText("Anna")).not.toBeInTheDocument();
   });
 
   it("edits a global shooter's name and guest status", async () => {

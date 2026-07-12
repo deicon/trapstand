@@ -1,0 +1,62 @@
+<h2>Sync-Strategie: Komplett vs. Delta</h2>
+<p class="subtitle">Welche Art von Daten soll das Tablet hochladen?</p>
+
+<div class="section">
+  <div class="options">
+    <div class="option" data-choice="full" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Kompletter Datenbestand</h3>
+        <p>Bei jedem Sync wird der gesamte Backup-JSON hochgeladen. Einfach, robust, leicht wiederherstellbar.</p>
+        <div class="pros-cons">
+          <div class="pros">
+            <h4>Vorteile</h4>
+            <ul>
+              <li>Wir haben den Code schon (<code>exportBackupJson</code>)</li>
+              <li>Keine Delta-Logik nötig</li>
+              <li>Leser sieht immer konsistenten Snapshot</li>
+              <li>Wiederherstellung = ein Blob ersetzen</li>
+            </ul>
+          </div>
+          <div class="cons">
+            <h4>Nachteile</h4>
+            <ul>
+              <li>Mehr Datenvolumen pro Sync</li>
+              <li>Schreib-Last auf S3 höher (immer PUT kompletter Datei)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="option" data-choice="delta" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Delta (nur Änderungen)</h3>
+        <p>Nur neue/geänderte Runden werden hochgeladen. Spart Bandbreite, erfordert aber Versionierung.</p>
+        <div class="pros-cons">
+          <div class="pros">
+            <h4>Vorteile</h4>
+            <ul>
+              <li>Weniger Datenvolumen pro Sync</li>
+              <li>Günstiger bei sehr vielen Runden</li>
+            </ul>
+          </div>
+          <div class="cons">
+            <h4>Nachteile</h4>
+            <ul>
+              <li>Delta-Reihenfolge und -Lücken müssen verwaltet werden</li>
+              <li>Leser braucht alle Deltas, um aktuellen Stand zu bauen</li>
+              <li>Komplexer bei "gelöschten" Runden</li>
+              <li>Für ein Schreib-Tablet meist Overkill</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Empfehlung</h3>
+  <p>Für euren Fall — ein Schreib-Tablet, wenige hundert Runden pro Jahr, regelmäßiger Internet-Ausfall — ist <strong>Option A (kompletter Datenbestand)</strong> der deutlich bessere Weg. Die Einsparung durch Delta wäre minimal, die Komplexität steigt spürbar.</p>
+</div>
