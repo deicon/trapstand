@@ -42,6 +42,7 @@ export interface Datenbestand {
   runden: Runde[];
   schuetzen?: GespeicherterSchuetze[];
   preise?: RundenPreise;
+  zuletztBearbeitet?: string;
 }
 
 export type RundenStatus = "entwurf" | "vollstaendig" | "gesperrt";
