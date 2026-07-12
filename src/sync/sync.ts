@@ -1,4 +1,6 @@
-import { encryptBackup, type EncryptedBackup } from "./crypto";
+import type { Datenbestand } from "../domain/model";
+import { importBackupJson } from "../export/backup";
+import { decryptBackup, encryptBackup, type EncryptedBackup } from "./crypto";
 import { clearPending, isPending } from "./pending";
 import { clearConsecutiveErrors, hasReachedMaxErrors, isBackoffActive, recordError } from "./retry";
 import { loadSyncSettings, type SyncSettings } from "./settings";
@@ -50,6 +52,19 @@ export async function triggerSyncIfNeeded(backupJson: string): Promise<void> {
   } finally {
     syncInProgress = false;
   }
+}
+
+export async function restoreFromCloud(): Promise<Datenbestand> {
+  const settings = loadSyncSettings();
+  if (!settings || !settings.enabled) {
+    throw new Error("Cloud-Sync ist nicht aktiviert.");
+  }
+  if (!settings.password) {
+    throw new Error("Kein Passwort hinterlegt.");
+  }
+  const encrypted = await fetchBackup(settings);
+  const json = await decryptBackup(encrypted, settings.password);
+  return importBackupJson(json);
 }
 
 export async function isWorkerReachable(): Promise<boolean> {

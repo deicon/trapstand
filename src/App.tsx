@@ -23,7 +23,7 @@ import { exportRundenCsv } from "./export/csv";
 import { refreshPwa } from "./pwa/refresh";
 import { CloudSyncDialog } from "./sync/CloudSyncDialog";
 import { loadSyncSettings } from "./sync/settings";
-import { syncNow, triggerSyncIfNeeded } from "./sync/sync";
+import { restoreFromCloud, syncNow, triggerSyncIfNeeded } from "./sync/sync";
 import { LocalDatenbestand } from "./storage/datenbestand";
 import "./styles.css";
 
@@ -413,6 +413,20 @@ export function App() {
               }}
               onSyncNow={() => {
                 void syncNow(JSON.stringify(store.export()));
+              }}
+              onRestore={async () => {
+                try {
+                  const datenbestand = await restoreFromCloud();
+                  store.replace(datenbestand);
+                  refreshRunden();
+                  setActiveId(null);
+                  setView("list");
+                  setMessage("Cloud-Backup wiederhergestellt.");
+                  setShowCloudSync(false);
+                  setSyncConfigKey((key) => key + 1);
+                } catch (error) {
+                  setMessage(error instanceof Error ? error.message : "Wiederherstellung fehlgeschlagen.");
+                }
               }}
             />
           )}

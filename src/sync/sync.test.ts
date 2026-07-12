@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { syncNow, isWorkerReachable, triggerSyncIfNeeded } from "./sync";
+import { syncNow, isWorkerReachable, triggerSyncIfNeeded, restoreFromCloud } from "./sync";
 import { loadSyncSettings, saveSyncSettings, type SyncSettings } from "./settings";
 import * as pending from "./pending";
 import * as retry from "./retry";
+import { encryptBackup } from "./crypto";
 
 const settings: SyncSettings = {
   enabled: true,
@@ -124,6 +125,31 @@ describe("triggerSyncIfNeeded", () => {
     retry.recordError();
     await triggerSyncIfNeeded(JSON.stringify({ runden: [] }));
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("restoreFromCloud", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    saveSyncSettings(settings);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("downloads and decrypts a valid backup", async () => {
+    const backup = JSON.stringify({ version: 1, runden: [], schuetzen: [], preise: { mitgliedCent: 200, gastCent: 300 } });
+    const encrypted = await encryptBackup(backup, settings.password);
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => encrypted });
+    const result = await restoreFromCloud();
+    expect(result.runden).toEqual([]);
+    expect(result.preise).toEqual({ mitgliedCent: 200, gastCent: 300 });
+  });
+
+  it("throws when sync is disabled", async () => {
+    saveSyncSettings({ ...settings, enabled: false });
+    await expect(restoreFromCloud()).rejects.toThrow("nicht aktiviert");
   });
 });
 
