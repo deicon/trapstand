@@ -1,0 +1,20 @@
+name = "trapstand-sync"
+main = "src/index.ts"
+compatibility_date = "2026-07-12"
+
+[vars]
+S3_REGION = "nbg1"
+S3_BUCKET = "trapstand-cloud-sync"
+S3_ENDPOINT = "https://nbg1.your-objectstorage.com"
+PWA_ORIGIN = "*"
+# Optional public token for the spectator tablet. Can also be set as a secret via:
+#   wrangler secret put LIVE_TOKEN
+LIVE_TOKEN = "change-me"
+
+# Secrets (set via wrangler secret put):
+#   CLUB_WRITE_TOKEN  -> upload encrypted backups and publish live rounds
+#   CLUB_READ_TOKEN   -> download encrypted backups and view rankings
+#   S3_ACCESS_KEY_ID  -> Hetzner S3 access key
+#   S3_SECRET_ACCESS_KEY -> Hetzner S3 secret key
+# Optional:
+#   LIVE_TOKEN        -> public token for /live spectator page

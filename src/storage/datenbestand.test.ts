@@ -25,7 +25,25 @@ describe("LocalDatenbestand", () => {
     store.save(newer);
 
     expect(store.list().map((runde) => runde.id)).toEqual(["newer", "older"]);
-    expect(store.get("older")).toEqual(older);
+    expect(store.get("older")?.id).toEqual(older.id);
+  });
+
+  it("sets zuletztBearbeitet when saving a round", () => {
+    const store = new LocalDatenbestand("test-store");
+    const runde = createRunde({
+      id: "r1",
+      rundenzeit: "2026-05-30T10:00",
+      schiessleiter: "Dieter",
+      schuetzenNamen: ["Anna"]
+    });
+    const before = Math.floor(Date.now() / 1000);
+    store.save(runde);
+    const after = Math.ceil(Date.now() / 1000);
+    const saved = store.get("r1")!;
+    expect(saved.zuletztBearbeitet).toBeDefined();
+    const timestamp = Math.floor(new Date(saved.zuletztBearbeitet!).getTime() / 1000);
+    expect(timestamp).toBeGreaterThanOrEqual(before);
+    expect(timestamp).toBeLessThanOrEqual(after);
   });
 
   it("soft-deletes Runden, lists them separately and restores them", () => {

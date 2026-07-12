@@ -954,3 +954,24 @@ th:first-child {
     max-width: none;
   }
 }
+
+.cloud-sync-form label {
+  display: grid;
+  gap: 0.3rem;
+  margin-bottom: 0.75rem;
+}
+
+.cloud-sync-form input,
+.cloud-sync-form select {
+  width: 100%;
+}
+
+.sync-checkbox {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.sync-checkbox input {
+  width: auto;
+}
