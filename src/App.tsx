@@ -198,15 +198,47 @@ export function App() {
     setMessage("Runde endgueltig geloescht.");
   }
 
-  function deleteGlobalSchuetze(id: string) {
-    store.deleteSchuetze(id);
-    refreshRunden();
+  function createGlobalSchuetze(name: string): GespeicherterSchuetze | null {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      return null;
+    }
+    const schuetze = store.saveSchuetze(trimmedName);
+    if (schuetze) {
+      refreshRunden();
+    }
+    return schuetze;
   }
 
-  function createGlobalSchuetze(name: string) {
-    const schuetze = store.saveSchuetze(name);
-    refreshRunden();
-    return schuetze;
+  function deleteGlobalSchuetze(id: string) {
+    try {
+      store.removeSchuetze(id);
+      refreshRunden();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Löschen fehlgeschlagen.");
+    }
+  }
+
+  function updateGlobalSchuetze(id: string, name: string) {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      return;
+    }
+    try {
+      store.updateSchuetze(id, trimmedName);
+      refreshRunden();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Aktualisierung fehlgeschlagen.");
+    }
+  }
+
+  function updateGlobalSchuetzeGaststatus(id: string, gaststatus: boolean) {
+    try {
+      store.updateSchuetzeGaststatus(id, gaststatus);
+      refreshRunden();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Aktualisierung fehlgeschlagen.");
+    }
   }
 
   function markShooterPaidForDay(day: string, name: string, paid: boolean) {
@@ -356,9 +388,12 @@ export function App() {
       {view === "schuetzen" ? (
         <SchuetzenView
           schuetzen={schuetzen}
+          runden={runden}
           onBack={() => setView("list")}
           onCreate={createGlobalSchuetze}
           onDelete={deleteGlobalSchuetze}
+          onUpdate={updateGlobalSchuetze}
+          onToggleGast={updateGlobalSchuetzeGaststatus}
         />
       ) : view === "rangliste" ? (
         <RanglisteView
@@ -638,17 +673,26 @@ function RundenListItem({ runde, onOpen, onSoftDelete }: RundenListItemProps) {
 
 function SchuetzenView({
   schuetzen,
+  runden,
   onBack,
   onCreate,
-  onDelete
+  onDelete,
+  onUpdate,
+  onToggleGast
 }: {
   schuetzen: GespeicherterSchuetze[];
+  runden: Runde[];
   onBack: () => void;
   onCreate: (name: string) => GespeicherterSchuetze | null;
   onDelete: (id: string) => void;
+  onUpdate: (id: string, name: string) => void;
+  onToggleGast: (id: string, gaststatus: boolean) => void;
 }) {
   const [filter, setFilter] = useState("");
   const [newName, setNewName] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const query = filter.trim().toLocaleLowerCase();
   const filteredSchuetzen = schuetzen
     .filter((schuetze) => !query || schuetze.name.toLocaleLowerCase().includes(query))
@@ -661,6 +705,31 @@ function SchuetzenView({
       setFilter("");
     }
   }
+
+  function startEdit(schuetze: GespeicherterSchuetze) {
+    setEditingId(schuetze.id);
+    setEditName(schuetze.name);
+  }
+
+  function saveEdit(id: string) {
+    onUpdate(id, editName);
+    setEditingId(null);
+    setEditName("");
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditName("");
+  }
+
+  function isUsedInRunde(schuetze: GespeicherterSchuetze): boolean {
+    const key = normalizeNameKey(schuetze.name);
+    return runden.some((runde) => runde.rotte.some((entry) => normalizeNameKey(entry.name) === key));
+  }
+
+  const pendingDeleteSchuetze = pendingDeleteId
+    ? filteredSchuetzen.find((schuetze) => schuetze.id === pendingDeleteId)
+    : undefined;
 
   return (
     <section className="panel">
@@ -685,13 +754,80 @@ function SchuetzenView({
         <p className="empty-state">Keine Schützen gefunden.</p>
       ) : (
         <ul className="person-list">
-          {filteredSchuetzen.map((schuetze) => (
-            <li key={schuetze.id} className="person-row">
-              <span>{schuetze.name}</span>
-              <button className="danger" onClick={() => onDelete(schuetze.id)}>{schuetze.name} löschen</button>
-            </li>
-          ))}
+          {filteredSchuetzen.map((schuetze) => {
+            const isEditing = editingId === schuetze.id;
+            const isUsed = isUsedInRunde(schuetze);
+            return (
+              <li key={schuetze.id} className="person-row">
+                {isEditing ? (
+                  <div className="person-edit">
+                    <input
+                      value={editName}
+                      onChange={(event) => setEditName(event.target.value)}
+                      aria-label={`Name bearbeiten für ${schuetze.name}`}
+                    />
+                    <div className="person-actions">
+                      <button
+                        className="compact-button"
+                        disabled={editName.trim().length === 0}
+                        onClick={() => saveEdit(schuetze.id)}
+                      >
+                        Speichern
+                      </button>
+                      <button className="compact-button quiet-button" onClick={cancelEdit}>
+                        Abbrechen
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <span>{schuetze.name}</span>
+                    <div className="person-actions">
+                      <label className="compact-check gast-toggle">
+                        <input
+                          type="checkbox"
+                          checked={schuetze.gaststatus}
+                          onChange={(event) => onToggleGast(schuetze.id, event.target.checked)}
+                          aria-label={`${schuetze.name} als Gast markieren`}
+                        />
+                        <span>Gast</span>
+                      </label>
+                      <button
+                        className="compact-button"
+                        aria-label={`${schuetze.name} bearbeiten`}
+                        onClick={() => startEdit(schuetze)}
+                      >
+                        Bearbeiten
+                      </button>
+                      {!isUsed && (
+                        <button
+                          className="danger compact-button shooter-remove"
+                          aria-label={`${schuetze.name} löschen`}
+                          onClick={() => setPendingDeleteId(schuetze.id)}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </li>
+            );
+          })}
         </ul>
+      )}
+
+      {pendingDeleteId && pendingDeleteSchuetze && (
+        <ConfirmationDialog
+          message={`Schützen "${pendingDeleteSchuetze.name}" löschen?`}
+          confirmLabel="Löschen"
+          cancelLabel="Abbrechen"
+          onConfirm={() => {
+            onDelete(pendingDeleteId);
+            setPendingDeleteId(null);
+          }}
+          onCancel={() => setPendingDeleteId(null)}
+        />
       )}
     </section>
   );
@@ -1407,7 +1543,7 @@ function RundenEditor({ runden, schuetzen, recentSchuetzen, runde, onBack, onPri
                   {runde.rotte.length > 1 && (
                     <button
                       className="danger compact-button"
-                      disabled={rotteLocked || ergebnisseLocked}
+                      disabled={ergebnisseLocked}
                       onClick={() => onChange(removeSchuetze(runde, schuetze.id))}
                     >
                       Entfernen
@@ -1611,6 +1747,7 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
   const [safetyPending, setSafetyPending] = useState(false);
   const [showLiveQr, setShowLiveQr] = useState(false);
   const [liveQrDataUrl, setLiveQrDataUrl] = useState<string | null>(null);
+  const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
   const taubenPageSize = isPhoneWidth ? 5 : 25;
   const taubenPageCount = Math.ceil(25 / taubenPageSize);
   const activeTaubenPage = Math.min(taubenPage, taubenPageCount - 1);
@@ -1694,6 +1831,14 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
     setSafetyPending(false);
   }
 
+  function confirmRemove(schuetzeId: string) {
+    setPendingRemoveId(null);
+    onChange(removeSchuetze(runde, schuetzeId));
+    if (manualCursor?.schuetzeId === schuetzeId) {
+      setManualCursor(null);
+    }
+  }
+
   return (
     <main className="capture-shell">
       <div className="capture-toolbar">
@@ -1752,7 +1897,20 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
           <tbody>
             {runde.rotte.map((schuetze, schuetzeIndex) => (
               <tr key={schuetze.id} aria-label={schuetze.name || `Schuetze ${schuetzeIndex + 1}`} style={{ height: captureSlotHeight }}>
-                <th className="sticky-name">{schuetze.name || `Schuetze ${schuetzeIndex + 1}`}</th>
+                <th className="sticky-name">
+                  {schuetze.name || `Schuetze ${schuetzeIndex + 1}`}
+                  {runde.rotte.length > 1 && (
+                    <button
+                      type="button"
+                      className="danger compact-button shooter-remove"
+                      aria-label={`${schuetze.name || 'Schuetze'} entfernen`}
+                      disabled={inputsDisabled}
+                      onClick={() => setPendingRemoveId(schuetze.id)}
+                    >
+                      ×
+                    </button>
+                  )}
+                </th>
                 {schuetze.tauben.slice(firstTaubeIndex, lastTaubeIndex).map((taube, index) => (
                   <td key={taube.nummer} className={taube.nummer % 5 === 0 ? "group-end" : undefined}>
                     <TaubenButton
@@ -1787,6 +1945,16 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
           message="Sicherheit hergestellt?"
           confirmLabel="OK"
           onConfirm={confirmSafety}
+        />
+      )}
+
+      {pendingRemoveId && (
+        <ConfirmationDialog
+          message="Schützen aus laufender Runde entfernen?"
+          confirmLabel="Entfernen"
+          cancelLabel="Abbrechen"
+          onConfirm={() => confirmRemove(pendingRemoveId)}
+          onCancel={() => setPendingRemoveId(null)}
         />
       )}
     </main>

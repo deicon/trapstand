@@ -115,6 +115,65 @@ export class LocalDatenbestand {
     this.write({ ...datenbestand, schuetzen: (datenbestand.schuetzen ?? []).filter((schuetze) => schuetze.id !== id) });
   }
 
+  updateSchuetze(id: string, name: string): void {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      throw new Error("Name darf nicht leer sein.");
+    }
+
+    const datenbestand = this.read();
+    const schuetzen = datenbestand.schuetzen ?? [];
+    const targetIndex = schuetzen.findIndex((schuetze) => schuetze.id === id);
+    if (targetIndex < 0) {
+      throw new Error("Schuetze nicht gefunden.");
+    }
+
+    const newKey = normalizeNameKey(trimmedName);
+    const duplicate = schuetzen.find((schuetze) => schuetze.id !== id && normalizeNameKey(schuetze.name) === newKey);
+    if (duplicate) {
+      throw new Error(`Ein Schuetze mit dem Namen "${trimmedName}" existiert bereits.`);
+    }
+
+    const updated = { ...schuetzen[targetIndex], name: trimmedName };
+    this.write({
+      ...datenbestand,
+      schuetzen: sortSchuetzen([...schuetzen.slice(0, targetIndex), updated, ...schuetzen.slice(targetIndex + 1)])
+    });
+  }
+
+  updateSchuetzeGaststatus(id: string, gaststatus: boolean): void {
+    const datenbestand = this.read();
+    const schuetzen = datenbestand.schuetzen ?? [];
+    const targetIndex = schuetzen.findIndex((schuetze) => schuetze.id === id);
+    if (targetIndex < 0) {
+      throw new Error("Schuetze nicht gefunden.");
+    }
+
+    const updated = { ...schuetzen[targetIndex], gaststatus };
+    this.write({
+      ...datenbestand,
+      schuetzen: sortSchuetzen([...schuetzen.slice(0, targetIndex), updated, ...schuetzen.slice(targetIndex + 1)])
+    });
+  }
+
+  removeSchuetze(id: string): void {
+    const datenbestand = this.read();
+    const schuetzen = datenbestand.schuetzen ?? [];
+    const target = schuetzen.find((schuetze) => schuetze.id === id);
+    if (!target) {
+      throw new Error("Schuetze nicht gefunden.");
+    }
+
+    const isReferenced = datenbestand.runden.some((runde) =>
+      runde.rotte.some((schuetze) => normalizeNameKey(schuetze.name) === normalizeNameKey(target.name))
+    );
+    if (isReferenced) {
+      throw new Error(`Schuetze "${target.name}" ist in einer Runde enthalten und kann nicht geloescht werden.`);
+    }
+
+    this.write({ ...datenbestand, schuetzen: schuetzen.filter((schuetze) => schuetze.id !== id) });
+  }
+
   replace(datenbestand: Datenbestand): void {
     this.write(datenbestand);
   }

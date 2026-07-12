@@ -207,6 +207,61 @@ describe("LocalDatenbestand", () => {
     const runde = store.get("r1")!;
     expect(runde.rotte[0].kostenlos).toBe(false);
   });
+
+  it("updates a global Schuetze name", () => {
+    const store = new LocalDatenbestand("test-store");
+    const schuetze = store.saveSchuetze("Anna")!;
+    store.updateSchuetze(schuetze.id, "Anna Maria");
+
+    expect(store.listSchuetzen().map((entry) => entry.name)).toEqual(["Anna Maria"]);
+  });
+
+  it("prevents updating a global Schuetze name to a duplicate", () => {
+    const store = new LocalDatenbestand("test-store");
+    const anna = store.saveSchuetze("Anna")!;
+    store.saveSchuetze("Bernd");
+
+    expect(() => store.updateSchuetze(anna.id, "Bernd")).toThrow(/existiert bereits/i);
+    expect(store.listSchuetzen().map((entry) => entry.name)).toContain("Anna");
+  });
+
+  it("updates a global Schuetze guest status", () => {
+    const store = new LocalDatenbestand("test-store");
+    const schuetze = store.saveSchuetze("Anna")!;
+    expect(schuetze.gaststatus).toBe(false);
+
+    store.updateSchuetzeGaststatus(schuetze.id, true);
+
+    const updated = store.listSchuetzen()[0];
+    expect(updated.gaststatus).toBe(true);
+  });
+
+  it("removes a global Schuetze that is not referenced in any Runde", () => {
+    const store = new LocalDatenbestand("test-store");
+    const schuetze = store.saveSchuetze("Anna")!;
+    expect(store.listSchuetzen()).toHaveLength(1);
+
+    store.removeSchuetze(schuetze.id);
+
+    expect(store.listSchuetzen()).toHaveLength(0);
+  });
+
+  it("refuses to remove a global Schuetze that is referenced in a Runde", () => {
+    const store = new LocalDatenbestand("test-store");
+    const runde = createRunde({
+      id: "runde-1",
+      rundenzeit: "2026-05-30T10:00",
+      schiessleiter: "Dieter",
+      schuetzenNamen: ["Anna"]
+    });
+    store.save(completeRunde(runde));
+
+    const [anna] = store.listSchuetzen();
+    expect(anna.name).toBe("Anna");
+
+    expect(() => store.removeSchuetze(anna.id)).toThrow(/kann nicht geloescht werden/i);
+    expect(store.listSchuetzen()).toHaveLength(1);
+  });
 });
 
 function completeRunde(runde: ReturnType<typeof createRunde>): ReturnType<typeof createRunde> {

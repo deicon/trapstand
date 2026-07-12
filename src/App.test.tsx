@@ -290,7 +290,7 @@ describe("Trapstand app", () => {
     expect(within(quickSchuetzen).queryByRole("button", { name: /^peter$/i })).not.toBeInTheDocument();
   });
 
-  it("opens a filterable Schuetzen list, creates Schuetzen and deletes global Schuetzen", async () => {
+  it("opens a filterable Schuetzen list, creates Schuetzen and deletes unused global Schuetzen", async () => {
     const user = userEvent.setup();
     const previous = createRunde({
       id: "previous",
@@ -312,14 +312,75 @@ describe("Trapstand app", () => {
     await user.type(screen.getByLabelText(/schützen filtern/i), "ann");
     expect(screen.getByText("Anna")).toBeInTheDocument();
     expect(screen.queryByText("Bernd")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /anna löschen/i })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /anna löschen/i }));
-    expect(screen.queryByText("Anna")).not.toBeInTheDocument();
+    await user.clear(screen.getByLabelText(/schützen filtern/i));
+    await user.click(screen.getByRole("button", { name: /claudia löschen/i }));
+    expect(screen.getByRole("dialog")).toHaveTextContent(/schützen "claudia" löschen/i);
+    await user.click(screen.getByRole("button", { name: /^löschen$/i }));
+    expect(screen.queryByText("Claudia")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /zurück zur liste/i }));
     await user.click(screen.getByRole("button", { name: /neue runde/i }));
-    expect(screen.queryByRole("button", { name: /^anna$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^claudia$/i })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^bernd$/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^anna$/i })).toBeInTheDocument();
+  });
+
+  it("edits a global shooter's name and guest status", async () => {
+    const user = userEvent.setup();
+    const previous = createRunde({
+      id: "previous",
+      rundenzeit: "2026-05-30T11:00",
+      schiessleiter: "Leiter",
+      schuetzenNamen: ["Anna"]
+    });
+    localStorage.setItem("trapstand:datenbestand", JSON.stringify({ runden: [previous] }));
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: /^einstellungen$/i }));
+    await user.click(screen.getByRole("menuitem", { name: /^schützen$/i }));
+
+    await user.click(screen.getByRole("button", { name: /anna bearbeiten/i }));
+    const editInput = screen.getByLabelText(/name bearbeiten für anna/i);
+    await user.clear(editInput);
+    await user.type(editInput, "Anna Maria");
+    await user.click(screen.getByRole("button", { name: /speichern/i }));
+
+    expect(screen.getByText("Anna Maria")).toBeInTheDocument();
+    expect(screen.queryByText(/^anna$/i)).not.toBeInTheDocument();
+
+    const gastCheckbox = screen.getByRole("checkbox", { name: /anna maria als gast markieren/i });
+    expect(gastCheckbox).not.toBeChecked();
+    await user.click(gastCheckbox);
+    expect(gastCheckbox).toBeChecked();
+  });
+
+  it("removes a shooter from a running round after confirmation", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: /neue runde/i }));
+    await user.clear(screen.getByLabelText(/name schuetze 1/i));
+    await user.type(screen.getByLabelText(/name schuetze 1/i), "Anna");
+    await user.click(screen.getByRole("button", { name: /schuetze hinzufuegen/i }));
+    await user.type(screen.getByLabelText(/name schuetze 2/i), "Bernd");
+
+    await startRunde(user);
+
+    const berndRow = screen.getByRole("row", { name: /bernd/i });
+    await user.click(within(berndRow).getByRole("button", { name: /bernd entfernen/i }));
+
+    expect(screen.getByRole("dialog")).toHaveTextContent(/schützen aus laufender runde entfernen/i);
+
+    await user.click(screen.getByRole("button", { name: /abbrechen/i }));
+    expect(screen.getByRole("row", { name: /bernd/i })).toBeInTheDocument();
+
+    await user.click(within(berndRow).getByRole("button", { name: /bernd entfernen/i }));
+    await user.click(screen.getByRole("button", { name: /^entfernen$/i }));
+
+    expect(screen.queryByRole("row", { name: /bernd/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("row", { name: /anna/i })).toBeInTheDocument();
   });
 
   it("shows Schuetzen rankings by top result and average result", async () => {
@@ -695,7 +756,7 @@ describe("Trapstand app", () => {
     expect(screen.getByText(/bernd/i)).toBeInTheDocument();
   });
 
-  it("locks Schuetzen add and remove after the first Rundeneintrag", async () => {
+  it("locks adding Schuetzen after the first Rundeneintrag but still allows removing them", async () => {
     const user = userEvent.setup();
     render(<App />);
 
@@ -711,7 +772,7 @@ describe("Trapstand app", () => {
 
     await user.click(screen.getByRole("button", { name: /runde beenden/i }));
     expect(screen.getByRole("button", { name: /schuetze hinzufuegen/i })).toBeDisabled();
-    expect(screen.getAllByRole("button", { name: /^entfernen$/i })[0]).toBeDisabled();
+    expect(screen.getAllByRole("button", { name: /^entfernen$/i })[0]).not.toBeDisabled();
     expect(screen.queryByText(/rotte gesperrt/i)).not.toBeInTheDocument();
   });
 
