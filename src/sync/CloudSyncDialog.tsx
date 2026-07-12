@@ -17,6 +17,7 @@ export function CloudSyncDialog({ onClose, onRestore, onSyncNow }: Props) {
   const [password, setPassword] = useState(existing?.password ?? "");
   const [rememberPassword, setRememberPassword] = useState(existing?.rememberPassword ?? true);
   const [intervalMinutes, setIntervalMinutes] = useState(existing?.intervalMinutes ?? 5);
+  const [isEditing, setIsEditing] = useState(!existing);
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -31,18 +32,37 @@ export function CloudSyncDialog({ onClose, onRestore, onSyncNow }: Props) {
       intervalMinutes
     };
     saveSyncSettings(settings);
-    onClose();
+    setIsEditing(false);
   }
+
+  function handleCancelEdit() {
+    if (existing) {
+      setEnabled(existing.enabled);
+      setWorkerUrl(existing.workerUrl);
+      setWriteToken(existing.writeToken);
+      setReadToken(existing.readToken);
+      setLiveToken(existing.liveToken);
+      setPassword(existing.password);
+      setRememberPassword(existing.rememberPassword);
+      setIntervalMinutes(existing.intervalMinutes);
+      setIsEditing(false);
+    } else {
+      onClose();
+    }
+  }
+
+  const inputReadOnly = !isEditing;
 
   return (
     <div className="dialog-backdrop">
-      <div className="dialog-panel" role="dialog" aria-modal="true" aria-label="Cloud-Sync">
+      <div className="dialog-panel cloud-sync-dialog" role="dialog" aria-modal="true" aria-label="Cloud-Sync">
         <h2>Cloud-Sync</h2>
         <form className="cloud-sync-form" onSubmit={handleSubmit}>
           <label className="sync-checkbox">
             <input
               type="checkbox"
               checked={enabled}
+              disabled={inputReadOnly}
               onChange={(event) => setEnabled(event.target.checked)}
             />
             Sync aktivieren
@@ -52,6 +72,7 @@ export function CloudSyncDialog({ onClose, onRestore, onSyncNow }: Props) {
             <input
               type="url"
               value={workerUrl}
+              readOnly={inputReadOnly}
               onChange={(event) => setWorkerUrl(event.target.value)}
               placeholder="https://trapstand-sync.dein-verein.workers.dev"
             />
@@ -61,6 +82,7 @@ export function CloudSyncDialog({ onClose, onRestore, onSyncNow }: Props) {
             <input
               type="text"
               value={writeToken}
+              readOnly={inputReadOnly}
               onChange={(event) => setWriteToken(event.target.value)}
             />
           </label>
@@ -69,6 +91,7 @@ export function CloudSyncDialog({ onClose, onRestore, onSyncNow }: Props) {
             <input
               type="text"
               value={readToken}
+              readOnly={inputReadOnly}
               onChange={(event) => setReadToken(event.target.value)}
             />
           </label>
@@ -77,6 +100,7 @@ export function CloudSyncDialog({ onClose, onRestore, onSyncNow }: Props) {
             <input
               type="text"
               value={liveToken}
+              readOnly={inputReadOnly}
               onChange={(event) => setLiveToken(event.target.value)}
               placeholder="fuer Zuschauer-Tablet"
             />
@@ -86,6 +110,7 @@ export function CloudSyncDialog({ onClose, onRestore, onSyncNow }: Props) {
             <input
               type="password"
               value={password}
+              readOnly={inputReadOnly}
               onChange={(event) => setPassword(event.target.value)}
             />
           </label>
@@ -93,6 +118,7 @@ export function CloudSyncDialog({ onClose, onRestore, onSyncNow }: Props) {
             <input
               type="checkbox"
               checked={rememberPassword}
+              disabled={inputReadOnly}
               onChange={(event) => setRememberPassword(event.target.checked)}
             />
             Passwort merken
@@ -101,6 +127,7 @@ export function CloudSyncDialog({ onClose, onRestore, onSyncNow }: Props) {
             Sync-Intervall
             <select
               value={intervalMinutes}
+              disabled={inputReadOnly}
               onChange={(event) => setIntervalMinutes(Number(event.target.value))}
             >
               <option value={1}>1 Minute</option>
@@ -109,17 +136,30 @@ export function CloudSyncDialog({ onClose, onRestore, onSyncNow }: Props) {
               <option value={0}>Nur manuell</option>
             </select>
           </label>
-          <div className="dialog-actions">
-            <button type="submit">Speichern</button>
-            {onSyncNow && (
-              <button type="button" onClick={onSyncNow}>Jetzt syncen</button>
+          <div className="dialog-actions cloud-sync-actions">
+            {isEditing ? (
+              <>
+                <button type="submit">Speichern</button>
+                <button type="button" className="quiet-button" onClick={handleCancelEdit}>
+                  Abbrechen
+                </button>
+              </>
+            ) : (
+              <>
+                <button type="button" onClick={() => setIsEditing(true)}>
+                  Bearbeiten
+                </button>
+                {onSyncNow && (
+                  <button type="button" onClick={onSyncNow}>Jetzt syncen</button>
+                )}
+                {onRestore && (
+                  <button type="button" className="danger" onClick={onRestore}>
+                    Cloud-Backup wiederherstellen
+                  </button>
+                )}
+                <button type="button" onClick={onClose}>Schliessen</button>
+              </>
             )}
-            {onRestore && (
-              <button type="button" className="danger" onClick={onRestore}>
-                Cloud-Backup wiederherstellen
-              </button>
-            )}
-            <button type="button" onClick={onClose}>Abbrechen</button>
           </div>
         </form>
       </div>

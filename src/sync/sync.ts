@@ -1,11 +1,19 @@
-import type { Datenbestand, Runde } from "../domain/model";
-import { importBackupJson } from "../export/backup";
 import { decryptBackup, encryptBackup, type EncryptedBackup } from "./crypto";
+import { importBackupJson } from "../export/backup";
+import { newestTimestamp } from "../storage/datenbestand";
 import { clearPending, isPending } from "./pending";
 import { clearConsecutiveErrors, hasReachedMaxErrors, isBackoffActive, recordError } from "./retry";
 import { loadSyncSettings, type SyncSettings } from "./settings";
+import type { Datenbestand, Runde } from "../domain/model";
 
 let syncInProgress = false;
+
+export class CloudIsNewerError extends Error {
+  constructor(message = "Cloud-Backup ist neuer. Bitte vorher wiederherstellen.") {
+    super(message);
+    this.name = "CloudIsNewerError";
+  }
+}
 
 export async function syncNow(backupJson: string): Promise<void> {
   const settings = loadSyncSettings();
@@ -15,6 +23,17 @@ export async function syncNow(backupJson: string): Promise<void> {
   if (!settings.rememberPassword && !settings.password) {
     throw new Error("Passwort nicht gespeichert.");
   }
+
+  const cloudBackup = await fetchRemoteBackup(settings);
+  if (cloudBackup) {
+    const cloudTimestamp = newestTimestamp(cloudBackup);
+    const localBackup = JSON.parse(backupJson) as Datenbestand;
+    const localTimestamp = newestTimestamp(localBackup);
+    if (cloudTimestamp && (!localTimestamp || cloudTimestamp > localTimestamp)) {
+      throw new CloudIsNewerError();
+    }
+  }
+
   const encrypted = await encryptBackup(backupJson, settings.password);
   const response = await fetch(`${settings.workerUrl}/sync`, {
     method: "POST",
@@ -47,6 +66,9 @@ export async function triggerSyncIfNeeded(backupJson: string): Promise<void> {
   try {
     await syncNow(backupJson);
   } catch (error) {
+    if (error instanceof CloudIsNewerError) {
+      throw error;
+    }
     recordError();
     throw error;
   } finally {
@@ -65,6 +87,19 @@ export async function restoreFromCloud(): Promise<Datenbestand> {
   const encrypted = await fetchBackup(settings);
   const json = await decryptBackup(encrypted, settings.password);
   return importBackupJson(json);
+}
+
+export async function fetchRemoteBackup(settings: SyncSettings): Promise<Datenbestand | null> {
+  try {
+    const encrypted = await fetchBackup(settings);
+    const json = await decryptBackup(encrypted, settings.password);
+    return importBackupJson(json);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("404")) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 export async function publishLiveRound(runde: Runde): Promise<void> {
