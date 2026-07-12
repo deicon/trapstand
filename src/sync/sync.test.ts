@@ -25,7 +25,7 @@ describe("syncNow", () => {
 
   it("uploads encrypted backup and clears pending", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 204 });
-    global.fetch = fetchMock;
+    globalThis.fetch = fetchMock;
     pending.markPending();
     await syncNow(JSON.stringify({ runden: [] }));
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -38,13 +38,13 @@ describe("syncNow", () => {
   });
 
   it("throws on sync failure", async () => {
-    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500 });
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500 });
     await expect(syncNow(JSON.stringify({ runden: [] }))).rejects.toThrow("Sync fehlgeschlagen");
   });
 
   it("returns early when sync disabled", async () => {
     const fetchMock = vi.fn();
-    global.fetch = fetchMock;
+    globalThis.fetch = fetchMock;
     saveSyncSettings({ ...settings, enabled: false });
     await syncNow(JSON.stringify({ runden: [] }));
     expect(fetchMock).not.toHaveBeenCalled();
@@ -62,7 +62,7 @@ describe("isWorkerReachable", () => {
 
   it("returns true when ping succeeds", async () => {
     saveSyncSettings(settings);
-    global.fetch = vi.fn().mockResolvedValue({ ok: true });
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true });
     expect(await isWorkerReachable()).toBe(true);
   });
 });
