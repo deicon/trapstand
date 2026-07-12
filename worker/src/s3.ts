@@ -52,7 +52,11 @@ export class S3Client {
       service: "s3"
     });
     const signed = await signer.sign();
-    return fetch(signed);
+    return fetch(signed.url.toString(), {
+      method: signed.method,
+      headers: signed.headers,
+      body: signed.body
+    });
   }
 
   private async getObject(key: string): Promise<Response> {
@@ -65,6 +69,10 @@ export class S3Client {
       service: "s3"
     });
     const signed = await signer.sign();
-    return fetch(signed);
+    return fetch(signed.url.toString(), {
+      method: signed.method,
+      headers: signed.headers,
+      body: signed.body
+    });
   }
 }
