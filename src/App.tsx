@@ -1604,7 +1604,6 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
   const [manualCursor, setManualCursor] = useState<CaptureCursor | null>(null);
   const [safetyPending, setSafetyPending] = useState(false);
   const [showLiveQr, setShowLiveQr] = useState(false);
-  const [liveQrUrl, setLiveQrUrl] = useState<string | null>(null);
   const [liveQrDataUrl, setLiveQrDataUrl] = useState<string | null>(null);
   const taubenPageSize = isPhoneWidth ? 5 : 25;
   const taubenPageCount = Math.ceil(25 / taubenPageSize);
@@ -1637,10 +1636,13 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
       setLiveQrDataUrl(null);
       return;
     }
-    const workerUrl = settings.workerUrl.trim() || window.location.origin;
+    const workerUrl = settings.workerUrl.trim();
+    if (!/^https?:\/\//i.test(workerUrl)) {
+      setLiveQrDataUrl(null);
+      return;
+    }
     const url = new URL("/live", workerUrl.replace(/\/$/, ""));
     url.searchParams.set("token", settings.liveToken);
-    setLiveQrUrl(url.toString());
     void QRCode.toDataURL(url.toString(), { width: 240, margin: 2, errorCorrectionLevel: "M" }).then(setLiveQrDataUrl);
   }, []);
 
@@ -1693,11 +1695,6 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
             <h2>Live-Runde beobachten</h2>
             <p>Scanne den QR-Code mit einem Zuschauer-Tablet oder Smartphone.</p>
             <img src={liveQrDataUrl} alt="QR-Code fuer Live-Runde" className="live-qr-code" />
-            {liveQrUrl && (
-              <div className="live-qr-url">
-                <code>{liveQrUrl}</code>
-              </div>
-            )}
             <div className="dialog-actions">
               <button onClick={() => setShowLiveQr(false)}>Schliessen</button>
             </div>
