@@ -1,3 +1,5 @@
+import { corsHeaders } from "./cors";
+
 export interface Env {
   CLUB_WRITE_TOKEN: string;
   CLUB_READ_TOKEN: string;
@@ -12,9 +14,15 @@ export interface Env {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: corsHeaders(env, request) });
+    }
+
     if (url.pathname === "/ping") {
       return new Response("pong", { status: 200 });
     }
+
     return new Response("Not found", { status: 404 });
   }
 };
