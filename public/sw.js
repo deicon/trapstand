@@ -1,4 +1,4 @@
-const CACHE_NAME = "trapstand-v1";
+const CACHE_NAME = "trapstand-v2";
 const BASE_URL = new URL(self.registration.scope).pathname;
 const APP_SHELL = [BASE_URL, `${BASE_URL}manifest.webmanifest`, `${BASE_URL}icon.svg`, `${BASE_URL}assets/settings.json`, `${BASE_URL}bad-camberg-logo.jpg`];
 
@@ -27,6 +27,13 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Cross-origin requests (Cloud-Sync-Worker: /data, /sync, /live, /ping) niemals
+  // ueber den Cache bedienen. Cache-First wuerde sonst eine einmalige Fehlantwort
+  // (z. B. 401 vor korrektem Token) einfrieren und dauerhaft ausliefern.
+  if (new URL(event.request.url).origin !== self.location.origin) {
+    return;
+  }
+
   if (event.request.mode === "navigate") {
     event.respondWith(
       fetch(event.request)
@@ -48,8 +55,10 @@ self.addEventListener("fetch", (event) => {
 
       return fetch(event.request)
         .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          }
           return response;
         })
         .catch(() => caches.match(BASE_URL));
