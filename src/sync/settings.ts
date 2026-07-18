@@ -27,13 +27,13 @@ export function saveSyncSettings(settings: SyncSettings): void {
   if (!isSyncSettings(settings)) {
     throw new Error("Ungueltige Sync-Einstellungen.");
   }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizeSyncSettings(settings)));
 }
 
 function normalizeSyncSettings(value: Partial<SyncSettings>): SyncSettings {
   return {
     enabled: value.enabled ?? false,
-    workerUrl: value.workerUrl ?? "",
+    workerUrl: normalizeWorkerUrl(value.workerUrl ?? ""),
     writeToken: value.writeToken ?? "",
     readToken: value.readToken ?? "",
     liveToken: value.liveToken ?? "",
@@ -41,6 +41,18 @@ function normalizeSyncSettings(value: Partial<SyncSettings>): SyncSettings {
     rememberPassword: value.rememberPassword ?? true,
     intervalMinutes: value.intervalMinutes ?? 5
   };
+}
+
+function normalizeWorkerUrl(workerUrl: string): string {
+  const trimmed = workerUrl.trim().replace(/\/+$/, "");
+  if (!trimmed) return "";
+
+  try {
+    const url = new URL(trimmed);
+    return url.origin;
+  } catch {
+    return trimmed;
+  }
 }
 
 function isPartialSyncSettings(value: unknown): value is Partial<SyncSettings> {

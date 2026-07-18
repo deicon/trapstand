@@ -170,6 +170,10 @@ export class LocalDatenbestand {
     this.write(datenbestand);
   }
 
+  replaceSynced(datenbestand: Datenbestand): void {
+    this.write(datenbestand, false);
+  }
+
   export(): Datenbestand {
     return this.read();
   }
@@ -207,9 +211,11 @@ export class LocalDatenbestand {
     }
   }
 
-  private write(datenbestand: Datenbestand): void {
+  private write(datenbestand: Datenbestand, pending = true): void {
     localStorage.setItem(this.key, JSON.stringify(datenbestand));
-    markPending();
+    if (pending) {
+      markPending();
+    }
   }
 }
 

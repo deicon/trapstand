@@ -3,7 +3,7 @@ import { syncNow, isWorkerReachable, triggerSyncIfNeeded, restoreFromCloud, publ
 import { loadSyncSettings, saveSyncSettings, type SyncSettings } from "./settings";
 import * as pending from "./pending";
 import * as retry from "./retry";
-import { encryptBackup } from "./crypto";
+import { decryptBackup, encryptBackup } from "./crypto";
 import type { Runde } from "../domain/model";
 
 const settings: SyncSettings = {
@@ -44,11 +44,16 @@ describe("syncNow", () => {
     expect(pending.isPending()).toBe(false);
   });
 
-  it("throws when cloud backup is newer", async () => {
+  it("merges when cloud backup is newer", async () => {
     const backup = JSON.stringify({ version: 1, runden: [{ id: "alt", rundenzeit: "2026-07-12T10:00:00", zuletztBearbeitet: "2026-07-12T12:00:00+02:00", schiessleiter: "X", rotte: [{ id: "s1", name: "A", gaststatus: false, zahlungsstatus: false, kostenlos: false, tauben: Array.from({ length: 25 }, (_, i) => ({ nummer: i + 1, status: "offen" })) }] }], schuetzen: [], preise: { mitgliedCent: 200, gastCent: 300 } });
     const encrypted = await encryptBackup(backup, settings.password);
-    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => encrypted });
-    await expect(syncNow(JSON.stringify({ version: 1, runden: [], schuetzen: [], preise: { mitgliedCent: 200, gastCent: 300 } }))).rejects.toThrow("Cloud-Backup ist neuer");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => encrypted })
+      .mockResolvedValueOnce({ ok: true, status: 204 });
+    globalThis.fetch = fetchMock;
+    const result = await syncNow(JSON.stringify({ runden: [], schuetzen: [], preise: { mitgliedCent: 200, gastCent: 300 } }));
+    expect(result.runden.map((runde) => runde.id)).toEqual(["alt"]);
   });
 
   it("uploads when local backup is newer than cloud", async () => {
@@ -60,8 +65,22 @@ describe("syncNow", () => {
       .mockResolvedValueOnce({ ok: true, json: async () => encrypted })
       .mockResolvedValueOnce({ ok: true, status: 204 });
     globalThis.fetch = fetchMock;
-    await syncNow(localBackup);
+    const result = await syncNow(localBackup);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.runden.map((runde) => runde.id)).toEqual(["neu", "alt"]);
+  });
+
+  it("uploads a versioned backup after merging", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 404 })
+      .mockResolvedValueOnce({ ok: true, status: 204 });
+    globalThis.fetch = fetchMock;
+    await syncNow(JSON.stringify({ runden: [], schuetzen: [], preise: { mitgliedCent: 200, gastCent: 300 } }));
+    const init = fetchMock.mock.calls[1][1] as RequestInit;
+    const encrypted = JSON.parse(init.body as string);
+    const uploaded = await decryptBackup(encrypted, settings.password);
+    expect(JSON.parse(uploaded).version).toBe(1);
   });
 
   it("throws on sync failure", async () => {

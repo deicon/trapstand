@@ -87,11 +87,15 @@ export function App() {
       return undefined;
     }
 
-    const run = () => {
-      void triggerSyncIfNeeded(JSON.stringify(store.export()));
+    const run = async () => {
+      const synced = await triggerSyncIfNeeded(JSON.stringify(store.export()));
+      if (synced) {
+        store.replaceSynced(synced);
+        refreshRunden();
+      }
     };
 
-    run();
+    void run();
 
     const handleOnline = () => run();
     window.addEventListener("online", handleOnline);
@@ -468,7 +472,13 @@ export function App() {
                 setSyncConfigKey((key) => key + 1);
               }}
               onSyncNow={() => {
-                void syncNow(JSON.stringify(store.export()));
+                void syncNow(JSON.stringify(store.export())).then((synced) => {
+                  store.replaceSynced(synced);
+                  refreshRunden();
+                  setMessage("Cloud-Sync abgeschlossen.");
+                }).catch((error) => {
+                  setMessage(error instanceof Error ? error.message : "Cloud-Sync fehlgeschlagen.");
+                });
               }}
               onRestore={async () => {
                 try {

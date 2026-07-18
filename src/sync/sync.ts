@@ -1,40 +1,27 @@
 import { decryptBackup, encryptBackup, type EncryptedBackup } from "./crypto";
-import { importBackupJson } from "../export/backup";
-import { newestTimestamp } from "../storage/datenbestand";
+import { exportBackupJson, importBackupJson } from "../export/backup";
 import { clearPending, isPending } from "./pending";
 import { clearConsecutiveErrors, hasReachedMaxErrors, isBackoffActive, recordError } from "./retry";
 import { loadSyncSettings, type SyncSettings } from "./settings";
+import { mergeDatenbestand } from "./merge";
 import type { Datenbestand, Runde } from "../domain/model";
 
 let syncInProgress = false;
 
-export class CloudIsNewerError extends Error {
-  constructor(message = "Cloud-Backup ist neuer. Bitte vorher wiederherstellen.") {
-    super(message);
-    this.name = "CloudIsNewerError";
-  }
-}
-
-export async function syncNow(backupJson: string): Promise<void> {
+export async function syncNow(backupJson: string): Promise<Datenbestand> {
   const settings = loadSyncSettings();
   if (!settings || !settings.enabled) {
-    return;
+    return parseDatenbestand(backupJson);
   }
   if (!settings.rememberPassword && !settings.password) {
     throw new Error("Passwort nicht gespeichert.");
   }
 
   const cloudBackup = await fetchRemoteBackup(settings);
-  if (cloudBackup) {
-    const cloudTimestamp = newestTimestamp(cloudBackup);
-    const localBackup = JSON.parse(backupJson) as Datenbestand;
-    const localTimestamp = newestTimestamp(localBackup);
-    if (cloudTimestamp && (!localTimestamp || cloudTimestamp > localTimestamp)) {
-      throw new CloudIsNewerError();
-    }
-  }
+  const localBackup = parseDatenbestand(backupJson);
+  const mergedBackup = mergeDatenbestand(localBackup, cloudBackup);
 
-  const encrypted = await encryptBackup(backupJson, settings.password);
+  const encrypted = await encryptBackup(exportBackupJson(mergedBackup), settings.password);
   const response = await fetch(`${settings.workerUrl}/sync`, {
     method: "POST",
     headers: {
@@ -48,32 +35,39 @@ export async function syncNow(backupJson: string): Promise<void> {
   }
   clearPending();
   clearConsecutiveErrors();
+  return mergedBackup;
 }
 
-export async function triggerSyncIfNeeded(backupJson: string): Promise<void> {
+export async function triggerSyncIfNeeded(backupJson: string): Promise<Datenbestand | null> {
   const settings = loadSyncSettings();
   if (!settings || !settings.enabled || settings.intervalMinutes === 0) {
-    return;
+    return null;
   }
   if (!navigator.onLine || !isPending()) {
-    return;
+    return null;
   }
   if (syncInProgress || hasReachedMaxErrors() || isBackoffActive()) {
-    return;
+    return null;
   }
 
   syncInProgress = true;
   try {
-    await syncNow(backupJson);
+    return await syncNow(backupJson);
   } catch (error) {
-    if (error instanceof CloudIsNewerError) {
-      throw error;
-    }
     recordError();
     throw error;
   } finally {
     syncInProgress = false;
   }
+}
+
+function parseDatenbestand(json: string): Datenbestand {
+  const parsed = JSON.parse(json) as Datenbestand;
+  return {
+    runden: parsed.runden ?? [],
+    ...(parsed.schuetzen ? { schuetzen: parsed.schuetzen } : {}),
+    ...(parsed.preise ? { preise: parsed.preise } : {})
+  };
 }
 
 export async function restoreFromCloud(): Promise<Datenbestand> {
