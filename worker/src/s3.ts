@@ -40,6 +40,33 @@ export class S3Client {
     return this.getObject(key);
   }
 
+  async deleteBackup(readToken: string): Promise<Response> {
+    const key = await this.objectKey(readToken);
+    return this.deleteObject(key);
+  }
+
+  async deleteLive(liveToken: string): Promise<Response> {
+    const key = await this.liveObjectKey(liveToken);
+    return this.deleteObject(key);
+  }
+
+  private async deleteObject(key: string): Promise<Response> {
+    const url = `${this.env.S3_ENDPOINT}/${this.env.S3_BUCKET}/${key}`;
+    const signer = new AwsV4Signer({
+      url,
+      method: "DELETE",
+      accessKeyId: this.env.S3_ACCESS_KEY_ID,
+      secretAccessKey: this.env.S3_SECRET_ACCESS_KEY,
+      service: "s3"
+    });
+    const signed = await signer.sign();
+    return fetch(signed.url.toString(), {
+      method: signed.method,
+      headers: signed.headers,
+      body: signed.body
+    });
+  }
+
   private async putObject(key: string, body: string): Promise<Response> {
     const url = `${this.env.S3_ENDPOINT}/${this.env.S3_BUCKET}/${key}`;
     const signer = new AwsV4Signer({

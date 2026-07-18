@@ -109,4 +109,28 @@ describe("worker routing", () => {
     const response = await worker.fetch(request, env);
     expect(response.status).toBe(401);
   });
+
+  it("resets backup and live objects with write token", async () => {
+    const calls: Array<{ method: string; url: string }> = [];
+    globalThis.fetch = vi.fn().mockImplementation((url: string | URL, init?: RequestInit) => {
+      calls.push({ method: init?.method ?? "GET", url: typeof url === "string" ? url : url.toString() });
+      return Promise.resolve(new Response(null, { status: 204 }));
+    });
+    const request = new Request("https://trapstand.example.com/reset", {
+      method: "POST",
+      headers: { Authorization: "Bearer write-secret" }
+    });
+    const response = await worker.fetch(request, env);
+    expect(response.status).toBe(200);
+    expect(calls.filter((c) => c.method === "DELETE")).toHaveLength(2);
+  });
+
+  it("rejects /reset without write token", async () => {
+    const request = new Request("https://trapstand.example.com/reset", {
+      method: "POST",
+      headers: { Authorization: "Bearer read-secret" }
+    });
+    const response = await worker.fetch(request, env);
+    expect(response.status).toBe(401);
+  });
 });

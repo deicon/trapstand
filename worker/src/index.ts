@@ -43,6 +43,23 @@ export default {
       return withCors(new Response(null, { status: 204 }), env, request);
     }
 
+    // TEMPORAER: einmaliges Zuruecksetzen des Cloud-Bestands (Backup + Live-Objekt).
+    // Nach Gebrauch wieder entfernen.
+    if (url.pathname === "/reset" && request.method === "POST") {
+      const token = extractToken(request);
+      const role = token ? validateToken(token, env.CLUB_WRITE_TOKEN, env.CLUB_READ_TOKEN) : null;
+      if (role !== "write") {
+        return withCors(new Response("Unauthorized", { status: 401 }), env, request);
+      }
+      const s3 = new S3Client(env);
+      const backup = await s3.deleteBackup(env.CLUB_READ_TOKEN);
+      const live = await s3.deleteLive(env.LIVE_TOKEN);
+      return withCors(new Response(JSON.stringify({ backup: backup.status, live: live.status }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      }), env, request);
+    }
+
     if (url.pathname === "/data" && request.method === "GET") {
       const token = extractToken(request);
       const role = token ? validateToken(token, env.CLUB_WRITE_TOKEN, env.CLUB_READ_TOKEN) : null;
