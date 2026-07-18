@@ -1,9 +1,11 @@
 import { createRunde } from "../domain/runden";
+import { clearPending, isPending } from "../sync/pending";
 import { LocalDatenbestand } from "./datenbestand";
 
 describe("LocalDatenbestand", () => {
   beforeEach(() => {
     localStorage.clear();
+    clearPending();
   });
 
   it("saves, updates, lists and loads Runden chronologically newest first", () => {
@@ -107,6 +109,21 @@ describe("LocalDatenbestand", () => {
 
     store.replace({ runden: [runde] });
     expect(store.list()).toEqual([runde]);
+  });
+
+  it("replaces synced data without marking pending", () => {
+    const store = new LocalDatenbestand("test-store");
+    const runde = createRunde({
+      id: "runde-1",
+      rundenzeit: "2026-05-30T10:00",
+      schiessleiter: "Dieter",
+      schuetzenNamen: ["Anna"]
+    });
+
+    store.replaceSynced({ runden: [runde] });
+
+    expect(store.list()).toEqual([runde]);
+    expect(isPending()).toBe(false);
   });
 
   it("stores unique global Schuetzen from saved Runden and lists the last used first", () => {

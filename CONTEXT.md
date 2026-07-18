@@ -104,7 +104,7 @@ _Avoid_: Punkt, Schuss
 - "Schiessleiter" bezeichnet kein App-Benutzerkonto; resolved: ein **Schiessleiter** ist ein Name auf einer **Runde**.
 - "Gast" bezeichnet keinen dauerhaften Personenstatus; resolved: **Gaststatus** ist eine Markierung des **Schuetzen** in einer bestimmten **Runde**.
 - "bezahlt" bezeichnet keine Zahlungstransaktion; resolved: **Zahlungsstatus** ist eine Ja/Nein-Markierung fuer die Teilnahme eines **Schuetzen** an einer bestimmten **Runde**.
-- "Export Import" bezeichnet kein Zusammenfuehren paralleler Tablets; resolved: Import und Export dienen Backup, Wiederherstellung und Geraetewechsel eines kompletten **Datenbestands**.
+- "Export Import" bezeichnet kein manuelles Zusammenfuehren paralleler Tablets; resolved: Import und Export dienen Backup, Wiederherstellung und Geraetewechsel eines kompletten **Datenbestands**. Cloud-Sync fuehrt parallele Tablets automatisch auf Ebene einzelner **Runden** ueber `id` und `zuletztBearbeitet` zusammen.
 - **Offline-Betrieb** ist eine Kernbedingung, weil der Schuetzenstand im Wald liegt; resolved: die Anwendung wird als statische PWA ohne zentralen Server gebaut.
 - Ein **Backup-Export** soll auf dem Tablet ueber die native Teilen-Funktion verschickbar sein, insbesondere per Mail.
 - Eine **Gesperrte Runde** verhindert versehentliche Ergebnis-Aenderungen; resolved: Entsperren ist ohne Sonderrechte moeglich.
