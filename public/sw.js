@@ -1,4 +1,4 @@
-const CACHE_NAME = "trapstand-v2";
+const CACHE_NAME = "trapstand-v3";
 const BASE_URL = new URL(self.registration.scope).pathname;
 const APP_SHELL = [BASE_URL, `${BASE_URL}manifest.webmanifest`, `${BASE_URL}icon.svg`, `${BASE_URL}assets/settings.json`, `${BASE_URL}bad-camberg-logo.jpg`];
 
@@ -34,15 +34,25 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // App-Shell (Navigation): Stale-While-Revalidate. Die gecachte Shell wird sofort
+  // ausgeliefert, damit der Start am Stand ohne verlaesslichen Netz nicht auf einen
+  // Netz-Timeout wartet. Parallel wird im Hintergrund eine frische Version geholt und
+  // in den Cache gelegt, sodass der naechste Start das aktuelle Deployment bekommt.
   if (event.request.mode === "navigate") {
     event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(BASE_URL, copy));
-          return response;
-        })
-        .catch(() => caches.match(BASE_URL))
+      caches.match(BASE_URL).then((cached) => {
+        const networkFetch = fetch(event.request)
+          .then((response) => {
+            if (response.ok) {
+              const copy = response.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(BASE_URL, copy));
+            }
+            return response;
+          })
+          .catch(() => cached);
+
+        return cached || networkFetch;
+      })
     );
     return;
   }
