@@ -18,7 +18,6 @@ import {
   setTaubenstatus,
   updateSchuetze
 } from "./domain/runden";
-import QRCode from "qrcode";
 import { exportBackupJson, importBackupJson } from "./export/backup";
 import { exportRundenCsv } from "./export/csv";
 import { refreshPwa } from "./pwa/refresh";
@@ -1798,7 +1797,17 @@ function RundenErfassung({ runde, onEnd, onChange }: RundenErfassungProps) {
     }
     const url = new URL("/live", workerUrl.replace(/\/$/, ""));
     url.searchParams.set("token", settings.liveToken);
-    void QRCode.toDataURL(url.toString(), { width: 240, margin: 2, errorCorrectionLevel: "M" }).then(setLiveQrDataUrl);
+    let cancelled = false;
+    void import("qrcode").then(({ default: QRCode }) =>
+      QRCode.toDataURL(url.toString(), { width: 240, margin: 2, errorCorrectionLevel: "M" }).then((dataUrl) => {
+        if (!cancelled) {
+          setLiveQrDataUrl(dataUrl);
+        }
+      })
+    );
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function recordActive(status: Exclude<Taubenstatus, "offen">) {
