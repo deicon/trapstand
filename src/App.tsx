@@ -27,8 +27,9 @@ import { publishLiveRound, restoreFromCloud, syncNow, triggerSyncIfNeeded } from
 import { LocalDatenbestand } from "./storage/datenbestand";
 import "./styles.css";
 
-type View = "list" | "editor" | "start-confirm" | "capture" | "print" | "day-print" | "schuetzen" | "rangliste" | "papierkorb";
+type View = "list" | "editor" | "start-confirm" | "capture" | "print" | "day-print" | "range-print" | "schuetzen" | "rangliste" | "papierkorb";
 type PrintMode = "einzelergebnisse" | "zusammenfassung";
+type PrintRange = { start: string; end: string };
 type CaptureCursor = { schuetzeId: string; taube: number };
 
 const store = new LocalDatenbestand();
@@ -44,6 +45,8 @@ export function App() {
   const [message, setMessage] = useState("");
   const [printDay, setPrintDay] = useState<string | null>(null);
   const [paymentDay, setPaymentDay] = useState<string | null>(null);
+  const [printRange, setPrintRange] = useState<PrintRange | null>(null);
+  const [showRangePrint, setShowRangePrint] = useState(false);
   const [showMainSettings, setShowMainSettings] = useState(false);
   const [showCloudSync, setShowCloudSync] = useState(false);
   const [syncConfigKey, setSyncConfigKey] = useState(0);
@@ -158,6 +161,12 @@ export function App() {
   async function exportDayCsv(day: string) {
     const csv = exportRundenCsv(sortRundenNewestFirst(runden.filter((runde) => dayKey(runde) === day)));
     await downloadOrShare(`trapstand-${day}.csv`, csv, "text/csv");
+    setMessage("CSV-Export vorbereitet.");
+  }
+
+  async function exportRangeCsv(range: PrintRange) {
+    const csv = exportRundenCsv(sortRundenForRange(filterRundenByRange(runden, range)));
+    await downloadOrShare(`trapstand-${range.start}_${range.end}.csv`, csv, "text/csv");
     setMessage("CSV-Export vorbereitet.");
   }
 
@@ -285,6 +294,17 @@ export function App() {
     );
   }
 
+  if (view === "range-print" && printRange) {
+    return (
+      <PrintView
+        runden={sortRundenForRange(filterRundenByRange(runden, printRange))}
+        subtitle={`Zeitraum ${formatDayLabel(printRange.start)} – ${formatDayLabel(printRange.end)}`}
+        onBack={() => setView("list")}
+        onExportCsv={() => void exportRangeCsv(printRange)}
+      />
+    );
+  }
+
   if (view === "capture" && activeRunde) {
     return (
       <RundenErfassung
@@ -340,6 +360,17 @@ export function App() {
                   }}
                 >
                   Papierkorb
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setShowMainSettings(false);
+                    setActiveId(null);
+                    setView("list");
+                    setShowRangePrint(true);
+                  }}
+                >
+                  Zeitraum drucken
                 </button>
                 <button
                   role="menuitem"
@@ -462,6 +493,17 @@ export function App() {
               runden={runden.filter((runde) => dayKey(runde) === paymentDay)}
               onTogglePaid={(name, paid) => markShooterPaidForDay(paymentDay, name, paid)}
               onClose={() => setPaymentDay(null)}
+            />
+          )}
+          {showRangePrint && (
+            <RangePrintDialog
+              runden={runden}
+              onPrint={(range) => {
+                setShowRangePrint(false);
+                setPrintRange(range);
+                setView("range-print");
+              }}
+              onClose={() => setShowRangePrint(false)}
             />
           )}
           {showCloudSync && (
@@ -619,6 +661,43 @@ function SettingsDialog({ preise, onChange, onClose }: { preise: RundenPreise; o
         <PreiseEditor preise={preise} onChange={onChange} />
         <div className="dialog-actions">
           <button onClick={onClose}>Schliessen</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RangePrintDialog({ runden, onPrint, onClose }: { runden: Runde[]; onPrint: (range: PrintRange) => void; onClose: () => void }) {
+  const [start, setStart] = useState(() => `${todayKey().slice(0, 8)}01`);
+  const [end, setEnd] = useState(() => todayKey());
+  const validRange = Boolean(start && end && start <= end);
+  const count = validRange ? filterRundenByRange(runden, { start, end }).length : 0;
+  const dayCount = validRange ? new Set(filterRundenByRange(runden, { start, end }).map(dayKey)).size : 0;
+
+  return (
+    <div className="dialog-backdrop">
+      <div className="dialog-panel settings-dialog" role="dialog" aria-modal="true" aria-label="Zeitraum drucken">
+        <h2>Zeitraum drucken</h2>
+        <section className="price-editor">
+          <label>
+            Startdatum
+            <input type="date" value={start} max={end || undefined} onChange={(event) => setStart(event.target.value)} />
+          </label>
+          <label>
+            Enddatum
+            <input type="date" value={end} min={start || undefined} onChange={(event) => setEnd(event.target.value)} />
+          </label>
+        </section>
+        <span className="range-print-summary">
+          {!validRange
+            ? "Das Startdatum darf nicht nach dem Enddatum liegen."
+            : count === 0
+              ? "Keine Runden in diesem Zeitraum."
+              : `${count === 1 ? "1 Runde" : `${count} Runden`} an ${dayCount === 1 ? "1 Tag" : `${dayCount} Tagen`}`}
+        </span>
+        <div className="dialog-actions">
+          <button onClick={onClose}>Abbrechen</button>
+          <button disabled={count === 0} onClick={() => onPrint({ start, end })}>Druckansicht</button>
         </div>
       </div>
     </div>
@@ -1165,6 +1244,20 @@ function groupRundenByDay(runden: Runde[]): Array<{ key: string; label: string; 
       runden: sortRundenNewestFirst(groupRunden)
     };
   });
+}
+
+function filterRundenByRange(runden: Runde[], range: PrintRange): Runde[] {
+  return runden.filter((runde) => {
+    const day = dayKey(runde);
+    return Boolean(day) && day >= range.start && day <= range.end;
+  });
+}
+
+// Tage aufsteigend, innerhalb eines Tages wie beim Tagesdruck (neueste zuerst).
+function sortRundenForRange(runden: Runde[]): Runde[] {
+  return groupRundenByDay(runden)
+    .sort((a, b) => a.key.localeCompare(b.key))
+    .flatMap((group) => group.runden);
 }
 
 function sortRundenNewestFirst(runden: Runde[]): Runde[] {
@@ -2112,7 +2205,7 @@ function sequenceIndex(taube: number, schuetzeIndex: number, rotteSize: number):
   return (taube - 1) * rotteSize + schuetzeIndex;
 }
 
-function PrintView({ runden, onBack, onExportCsv }: { runden: Runde[]; onBack: () => void; onExportCsv?: () => void }) {
+function PrintView({ runden, subtitle, onBack, onExportCsv }: { runden: Runde[]; subtitle?: string; onBack: () => void; onExportCsv?: () => void }) {
   const [mode, setMode] = useState<PrintMode>("einzelergebnisse");
   const totalRundengeld = sumRundengeld(runden);
 
@@ -2126,6 +2219,7 @@ function PrintView({ runden, onBack, onExportCsv }: { runden: Runde[]; onBack: (
         <button onClick={() => window.print()}>Drucken</button>
       </div>
       <h1>Druckansicht</h1>
+      {subtitle && <p className="print-subtitle">{subtitle}</p>}
       {runden.map((runde) => (
         <section key={runde.id} className="print-round">
           {(() => {

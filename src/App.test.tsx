@@ -1247,3 +1247,58 @@ describe("Druckansicht kostenlos und datum", () => {
     expect(screen.getByText(/05\.07\.2026/i)).toBeInTheDocument();
   });
 });
+
+describe("Zeitraum drucken", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+    Object.defineProperty(globalThis, "fetch", { configurable: true, value: vi.fn(() => Promise.reject(new Error("Keine Settings"))) });
+    localStorage.clear();
+  });
+
+  it("prints all Runden between Start- und Enddatum from the Einstellungen menu", async () => {
+    const user = userEvent.setup();
+    const store = new LocalDatenbestand();
+    store.save(createRunde({ id: "r1", rundenzeit: "2026-07-03T10:00", schiessleiter: "Leiter", schuetzenNamen: ["Anna"] }));
+    store.save(createRunde({ id: "r2", rundenzeit: "2026-07-05T10:00", schiessleiter: "Leiter", schuetzenNamen: ["Bernd"] }));
+    store.save(createRunde({ id: "r3", rundenzeit: "2026-07-09T10:00", schiessleiter: "Leiter", schuetzenNamen: ["Clara"] }));
+
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: /^einstellungen$/i }));
+    await user.click(screen.getByRole("menuitem", { name: /zeitraum drucken/i }));
+
+    const dialog = screen.getByRole("dialog", { name: /zeitraum drucken/i });
+    fireEvent.change(within(dialog).getByLabelText(/startdatum/i), { target: { value: "2026-07-01" } });
+    fireEvent.change(within(dialog).getByLabelText(/enddatum/i), { target: { value: "2026-07-05" } });
+    expect(within(dialog).getByText(/2 runden an 2 tagen/i)).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: /druckansicht/i }));
+
+    expect(screen.getByRole("heading", { name: /druckansicht/i })).toBeInTheDocument();
+    expect(screen.getByText(/zeitraum 01\.07\.2026 – 05\.07\.2026/i)).toBeInTheDocument();
+    expect(screen.getByText("Anna")).toBeInTheDocument();
+    expect(screen.getByText("Bernd")).toBeInTheDocument();
+    expect(screen.queryByText("Clara")).not.toBeInTheDocument();
+    const dates = screen.getAllByText(/schießleiter: leiter/i).map((element) => element.textContent);
+    expect(dates[0]).toMatch(/03\.07\.2026/);
+    expect(dates[1]).toMatch(/05\.07\.2026/);
+  });
+
+  it("disables printing for an empty or invalid Zeitraum", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: /^einstellungen$/i }));
+    await user.click(screen.getByRole("menuitem", { name: /zeitraum drucken/i }));
+
+    const dialog = screen.getByRole("dialog", { name: /zeitraum drucken/i });
+    expect(within(dialog).getByText(/keine runden in diesem zeitraum/i)).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: /druckansicht/i })).toBeDisabled();
+
+    fireEvent.change(within(dialog).getByLabelText(/startdatum/i), { target: { value: "2026-08-10" } });
+    fireEvent.change(within(dialog).getByLabelText(/enddatum/i), { target: { value: "2026-08-01" } });
+    expect(within(dialog).getByText(/startdatum darf nicht nach dem enddatum/i)).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: /abbrechen/i }));
+    expect(screen.queryByRole("dialog", { name: /zeitraum drucken/i })).not.toBeInTheDocument();
+  });
+});

@@ -209,6 +209,16 @@ input {
   margin: 0 0 1rem;
 }
 
+.range-print-summary {
+  display: block;
+  margin: 1rem 0;
+}
+
+.print-subtitle {
+  font-weight: 700;
+  margin: 0 0 1rem;
+}
+
 .section-header {
   align-items: center;
   display: flex;
